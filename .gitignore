@@ -3,6 +3,16 @@ server.js
 .claude/
 node_modules/
 
+# Android 构建产物
+.gradle/
+app/build/
+build/
+local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+
 # 系统文件
 .DS_Store
 Thumbs.db
