@@ -1,0 +1,9 @@
+# 开发工具
+server.js
+.claude/
+node_modules/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

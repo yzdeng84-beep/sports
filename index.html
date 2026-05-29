@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#5B9BD5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Cadence</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="Cadence">
+</head>
+<body>
+
+  <!-- ==================== 顶部标题栏 ==================== -->
+  <header class="app-header">
+    <h1 class="app-title">🏋️ Cadence</h1>
+  </header>
+
+  <!-- ==================== 主内容区（三个板块） ==================== -->
+  <main class="app-main">
+
+    <!-- 板块①：日历封面页 -->
+    <section id="panel-calendar" class="panel active">
+      <!-- 月份切换栏 -->
+      <div class="calendar-header">
+        <button class="btn-icon" id="cal-prev-month" title="上个月">◀</button>
+        <span class="calendar-month-label" id="cal-month-label">2026年 5月</span>
+        <button class="btn-icon" id="cal-next-month" title="下个月">▶</button>
+      </div>
+
+      <!-- 星期表头 -->
+      <div class="calendar-weekdays">
+        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+      </div>
+
+      <!-- 日期网格 -->
+      <div class="calendar-grid" id="calendar-grid">
+        <!-- 由 JS 动态渲染 -->
+      </div>
+
+      <!-- 日期详情展开区 -->
+      <div class="calendar-detail" id="calendar-detail">
+        <div class="detail-header">
+          <span class="detail-date" id="detail-date">选择日期查看计划</span>
+        </div>
+        <ul class="detail-tasks" id="detail-tasks">
+          <!-- 由 JS 动态渲染 -->
+        </ul>
+        <button class="btn-add" id="btn-add-task">+ 添加计划</button>
+      </div>
+    </section>
+
+    <!-- 板块②：心得记录 -->
+    <section id="panel-notes" class="panel">
+      <!-- 搜索栏 -->
+      <div class="notes-search">
+        <input type="text" class="search-input" id="notes-search-input" placeholder="🔍 搜索心得...">
+      </div>
+
+      <!-- 笔记列表 -->
+      <div class="notes-list" id="notes-list">
+        <!-- 由 JS 动态渲染 -->
+        <div class="empty-state">
+          <span class="empty-icon">📝</span>
+          <p>还没有心得记录</p>
+          <p class="empty-hint">点击下方按钮写下你的第一条心得吧</p>
+        </div>
+      </div>
+
+      <!-- 新建按钮 -->
+      <button class="btn-add btn-add-fixed" id="btn-add-note">+ 写心得</button>
+    </section>
+
+    <!-- 板块③：时间轴 + 记账（双视图） -->
+    <section id="panel-timeline" class="panel">
+
+      <!-- 子Tab：时间轴 | 记账 -->
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-sub="sub-timeline">🕐 时间轴</button>
+        <button class="sub-tab" data-sub="sub-budget">💰 记账</button>
+      </div>
+
+      <!-- ===== 共用的日期导航 ===== -->
+      <div class="timeline-dates-wrapper">
+        <div class="timeline-dates" id="timeline-dates">
+          <!-- 由 JS 动态渲染 -->
+        </div>
+        <button class="btn-today" id="btn-today">今天</button>
+      </div>
+
+      <!-- ===== 子视图①：时间轴 ===== -->
+      <div class="sub-panel active" id="sub-timeline">
+        <div class="timeline-canvas-wrapper">
+          <div class="timeline-time-ruler" id="timeline-ruler">
+            <!-- 由 JS 动态渲染 06:00 ~ 23:00 -->
+          </div>
+          <div class="timeline-tracks" id="timeline-tracks">
+            <div class="empty-state">
+              <span class="empty-icon">🕐</span>
+              <p>还没有活动安排</p>
+              <p class="empty-hint">点击下方按钮添加活动吧</p>
+            </div>
+          </div>
+        </div>
+        <button class="btn-add" id="btn-add-entry">+ 添加活动</button>
+      </div>
+
+      <!-- ===== 子视图②：记账 ===== -->
+      <div class="sub-panel" id="sub-budget">
+        <!-- 当日收支汇总 -->
+        <div class="budget-summary" id="budget-summary">
+          <div class="budget-sum-card income">
+            <div class="budget-sum-label">今日收入</div>
+            <div class="budget-sum-amount income" id="budget-income-total">¥0.00</div>
+          </div>
+          <div class="budget-sum-card expense">
+            <div class="budget-sum-label">今日支出</div>
+            <div class="budget-sum-amount expense" id="budget-expense-total">¥0.00</div>
+          </div>
+        </div>
+        <!-- 记账列表 -->
+        <div class="budget-list" id="budget-list">
+          <div class="empty-state">
+            <span class="empty-icon">💰</span>
+            <p>今天还没有记账</p>
+            <p class="empty-hint">点击下方按钮记录一笔吧</p>
+          </div>
+        </div>
+        <button class="btn-add" id="btn-add-expense">+ 记一笔</button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ==================== 底部 Tab 导航 ==================== -->
+  <nav class="tab-bar">
+    <button class="tab-item active" data-panel="panel-calendar">
+      <span class="tab-icon">📅</span>
+      <span class="tab-label">日历</span>
+    </button>
+    <button class="tab-item" data-panel="panel-notes">
+      <span class="tab-icon">📝</span>
+      <span class="tab-label">心得</span>
+    </button>
+    <button class="tab-item" data-panel="panel-timeline">
+      <span class="tab-icon">🕐</span>
+      <span class="tab-label">日程</span>
+    </button>
+  </nav>
+
+  <!-- ==================== 通用弹窗（添加/编辑用） ==================== -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-content" id="modal-content">
+      <!-- 由各模块动态填充 -->
+    </div>
+  </div>
+
+  <!-- ==================== 脚本加载 ==================== -->
+  <script src="js/storage.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/notes.js"></script>
+  <script src="js/timeline.js"></script>
+  <script src="js/budget.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
