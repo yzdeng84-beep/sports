@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#5B9BD5">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Cadence</title>
   <link rel="stylesheet" href="css/style.css">
   <!-- PWA Manifest -->
@@ -51,6 +51,7 @@
           <!-- 由 JS 动态渲染 -->
         </ul>
         <button class="btn-add" id="btn-add-task">+ 添加计划</button>
+        <button class="btn-add btn-add-expense" id="btn-add-expense-cal">+ 记账</button>
       </div>
     </section>
 
@@ -75,16 +76,10 @@
       <button class="btn-add btn-add-fixed" id="btn-add-note">+ 写心得</button>
     </section>
 
-    <!-- 板块③：时间轴 + 记账（双视图） -->
+    <!-- 板块③：时间轴 + 记账（统一视图） -->
     <section id="panel-timeline" class="panel">
 
-      <!-- 子Tab：时间轴 | 记账 -->
-      <div class="sub-tabs">
-        <button class="sub-tab active" data-sub="sub-timeline">🕐 时间轴</button>
-        <button class="sub-tab" data-sub="sub-budget">💰 记账</button>
-      </div>
-
-      <!-- ===== 共用的日期导航 ===== -->
+      <!-- ===== 日期导航 ===== -->
       <div class="timeline-dates-wrapper">
         <div class="timeline-dates" id="timeline-dates">
           <!-- 由 JS 动态渲染 -->
@@ -92,46 +87,50 @@
         <button class="btn-today" id="btn-today">今天</button>
       </div>
 
-      <!-- ===== 子视图①：时间轴 ===== -->
-      <div class="sub-panel active" id="sub-timeline">
-        <div class="timeline-canvas-wrapper">
-          <div class="timeline-time-ruler" id="timeline-ruler">
-            <!-- 由 JS 动态渲染 06:00 ~ 23:00 -->
-          </div>
-          <div class="timeline-tracks" id="timeline-tracks">
-            <div class="empty-state">
-              <span class="empty-icon">🕐</span>
-              <p>还没有活动安排</p>
-              <p class="empty-hint">点击下方按钮添加活动吧</p>
-            </div>
+      <!-- ===== 时间轴任务列表 ===== -->
+      <div class="timeline-canvas-wrapper">
+        <div class="timeline-tracks" id="timeline-tracks">
+          <div class="empty-state">
+            <span class="empty-icon">🕐</span>
+            <p>还没有活动安排</p>
+            <p class="empty-hint">点击下方按钮添加活动吧</p>
           </div>
         </div>
-        <button class="btn-add" id="btn-add-entry">+ 添加活动</button>
+        <!-- 当日收支摘要 -->
+        <div class="budget-mini" id="budget-mini">
+          <div class="budget-mini-row">
+            <span>💰 今日支出</span>
+            <span class="budget-mini-amount expense">¥0.00</span>
+          </div>
+          <div class="budget-mini-row">
+            <span>💚 今日收入</span>
+            <span class="budget-mini-amount income">¥0.00</span>
+          </div>
+        </div>
       </div>
 
-      <!-- ===== 子视图②：记账 ===== -->
-      <div class="sub-panel" id="sub-budget">
-        <!-- 当日收支汇总 -->
-        <div class="budget-summary" id="budget-summary">
-          <div class="budget-sum-card income">
-            <div class="budget-sum-label">今日收入</div>
-            <div class="budget-sum-amount income" id="budget-income-total">¥0.00</div>
-          </div>
-          <div class="budget-sum-card expense">
-            <div class="budget-sum-label">今日支出</div>
-            <div class="budget-sum-amount expense" id="budget-expense-total">¥0.00</div>
-          </div>
+      <!-- ===== 记账详情区 ===== -->
+      <div class="budget-summary" id="budget-summary" style="margin-top:var(--space-sm);">
+        <div class="budget-sum-card income">
+          <div class="budget-sum-label">今日收入</div>
+          <div class="budget-sum-amount income" id="budget-income-total">¥0.00</div>
         </div>
-        <!-- 记账列表 -->
-        <div class="budget-list" id="budget-list">
-          <div class="empty-state">
-            <span class="empty-icon">💰</span>
-            <p>今天还没有记账</p>
-            <p class="empty-hint">点击下方按钮记录一笔吧</p>
-          </div>
+        <div class="budget-sum-card expense">
+          <div class="budget-sum-label">今日支出</div>
+          <div class="budget-sum-amount expense" id="budget-expense-total">¥0.00</div>
         </div>
-        <button class="btn-add" id="btn-add-expense">+ 记一笔</button>
       </div>
+      <div class="budget-list" id="budget-list" style="margin-top:var(--space-sm);">
+        <div class="empty-state">
+          <span class="empty-icon">💰</span>
+          <p>今天还没有记账</p>
+          <p class="empty-hint">点击下方按钮记录一笔吧</p>
+        </div>
+      </div>
+
+      <!-- ===== 操作按钮 ===== -->
+      <button class="btn-add" id="btn-add-entry">+ 添加活动</button>
+      <button class="btn-add btn-add-expense" id="btn-add-expense">+ 记一笔</button>
 
     </section>
 

@@ -172,9 +172,9 @@ const CalendarModule = (() => {
   // ---------- 弹出添加/编辑任务弹窗 ----------
   // task: 编辑模式传入已有任务数据；新建模式不传
   function showAddForm(task) {
+    // 未选日期时自动使用今天，不再阻塞用户
     if (!selectedDate && !task) {
-      alert('请先在日历中选择一个日期');
-      return;
+      selectedDate = getToday();
     }
 
     const isEdit = !!task;
@@ -462,6 +462,14 @@ const CalendarModule = (() => {
     document.getElementById('btn-add-task').addEventListener('click', () => {
       showAddForm();
     });
+
+    // 记账按钮（日历详情区） → 弹出记账弹窗
+    const btnExpenseCal = document.getElementById('btn-add-expense-cal');
+    if (btnExpenseCal && typeof BudgetModule !== 'undefined') {
+      btnExpenseCal.addEventListener('click', () => {
+        BudgetModule.showAddForm();
+      });
+    }
   }
 
   // ---------- 公开 API ----------
@@ -469,6 +477,8 @@ const CalendarModule = (() => {
     render,
     bindEvents,
     selectDate,
+    showAddForm,
+    buildSummary,
     getSelectedDate: () => selectedDate,
   };
 })();

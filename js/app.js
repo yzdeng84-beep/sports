@@ -7,7 +7,7 @@ const App = (() => {
   'use strict';
 
   // ---------- 全局状态 ----------
-  let currentPanel = 'panel-calendar';  // 当前显示的板块
+  let currentPanel = null;  // 初始为 null，确保首次 switchPanel 能执行 render
   let currentDate = new Date();         // 当前浏览的日期
 
   // ---------- DOM 缓存 ----------

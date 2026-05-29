@@ -244,11 +244,38 @@ const BudgetModule = (() => {
     // 遮罩关闭已统一由 app.js 处理，无需重复注册
   }
 
+  // ---------- 紧凑收支摘要（嵌入时间轴） ----------
+  async function renderMini(container, dateStr) {
+    const date = dateStr || getToday();
+    const records = await DB.expenses.getByDate(date);
+    let incomeTotal = 0, expenseTotal = 0;
+    records.forEach(r => {
+      if (r.type === 'income') incomeTotal += Number(r.amount);
+      else expenseTotal += Number(r.amount);
+    });
+    if (typeof container === 'string') {
+      container = document.getElementById(container);
+    }
+    if (!container) return;
+    container.innerHTML = `
+      <div class="budget-mini-row">
+        <span>💰 今日支出</span>
+        <span class="budget-mini-amount expense">${formatMoney(expenseTotal)}</span>
+      </div>
+      <div class="budget-mini-row">
+        <span>💚 今日收入</span>
+        <span class="budget-mini-amount income">${formatMoney(incomeTotal)}</span>
+      </div>
+    `;
+  }
+
   // ---------- 公开 API ----------
   return {
     render,
     bindEvents,
     addRecord,
+    showAddForm,
+    renderMini,
     getCategories: () => categories,
   };
 })();

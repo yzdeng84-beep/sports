@@ -108,7 +108,8 @@ ul { list-style: none; }
 .app-header {
   position: fixed;
   top: 0; left: 0; right: 0;
-  height: var(--header-height);
+  height: calc(52px + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
   background: linear-gradient(135deg, #4A7FB5 0%, #6B9FD4 40%, #8BB8D0 100%);
   display: flex;
   align-items: center;
@@ -132,6 +133,7 @@ ul { list-style: none; }
   letter-spacing: 2px;
   position: relative;
   z-index: 1;
+  line-height: 1.2;
 }
 
 /* ---------- 底部 Tab 导航 ---------- */
@@ -185,7 +187,7 @@ ul { list-style: none; }
 /* ---------- 主内容区 ---------- */
 .app-main {
   position: fixed;
-  top: var(--header-height);
+  top: calc(52px + env(safe-area-inset-top, 0px));
   bottom: var(--tab-bar-height);
   left: 0; right: 0;
   overflow-y: auto;
@@ -281,8 +283,10 @@ ul { list-style: none; }
   background: var(--color-card);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   width: 100%;
+  max-width: 100%;
   max-height: 82vh;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-xl);
   box-shadow: var(--shadow-modal);
   animation: slideUp 0.3s ease;
@@ -505,34 +509,8 @@ ul { list-style: none; }
    板块③：时间轴 + 记账（双视图）
    ========================================== */
 
-/* 子Tab切换 */
-.sub-tabs {
-  display: flex;
-  margin-bottom: var(--space-md);
-  background: var(--color-card);
-  border-radius: var(--radius-sm);
-  padding: 3px;
-  box-shadow: var(--shadow-card);
-}
-.sub-tab {
-  flex: 1;
-  padding: var(--space-sm) var(--space-md);
-  text-align: center;
-  font-size: var(--font-body);
-  font-weight: 500;
-  color: var(--color-text-light);
-  border-radius: 6px;
-  transition: all 0.25s ease;
-  letter-spacing: 0.5px;
-}
-.sub-tab.active {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  color: #FFFFFF;
-  box-shadow: 0 2px 6px rgba(107,159,212,0.25);
-}
-
-.sub-panel { display: none; }
-.sub-panel.active { display: block; animation: fadeIn 0.3s ease; }
+/* 子面板（记账嵌入时间轴下方，始终可见，无需切换） */
+.sub-panel { display: block; }
 
 /* 时间轴 — 日期卡片 */
 .timeline-dates-wrapper {
@@ -598,49 +576,45 @@ ul { list-style: none; }
   padding: var(--space-md);
   box-shadow: var(--shadow-card);
   border: 1px solid rgba(0,0,0,0.02);
-  overflow: hidden;
 }
-.timeline-time-ruler {
+
+/* 时间轴任务列表（垂直排列，紧凑卡片） */
+.tl-task-list {
   display: flex;
-  padding-bottom: var(--space-sm);
-  border-bottom: 1px dashed rgba(107,159,212,0.25);
-  margin-bottom: var(--space-md);
-  overflow-x: auto;
-  min-width: 100%;
+  flex-direction: column;
+  gap: 6px;
 }
-.timeline-time-ruler::-webkit-scrollbar { height: 0; }
-.tl-hour {
+.tl-task-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px var(--space-sm);
+  background: var(--color-card-warm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  border-left: 3px solid var(--color-primary);
+}
+.tl-task-block:active { transform: scale(0.98); }
+.tl-task-icon { flex-shrink: 0; display: flex; align-items: center; }
+.tl-task-time {
   font-size: var(--font-small);
   color: var(--color-text-light);
-  min-width: 56px;
-  text-align: center;
+  min-width: 38px;
   flex-shrink: 0;
 }
-
-.timeline-tracks {
-  position: relative;
-  min-height: 50px;
-  overflow-x: auto;
+.tl-task-label {
+  font-size: var(--font-body);
+  font-weight: 500;
+  color: var(--color-text);
+  flex: 1;
+  min-width: 0;
 }
-.timeline-tracks::-webkit-scrollbar { height: 0; }
-
-.tl-entry {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  color: #FFFFFF;
-  font-size: var(--font-caption);
-  cursor: pointer;
-  margin-right: 6px;
-  white-space: nowrap;
-  transition: transform 0.2s ease;
+.tl-task-summary {
+  font-size: var(--font-small);
+  color: var(--color-text-light);
+  flex-shrink: 0;
 }
-.tl-entry:active { transform: scale(0.95); }
-.tl-entry:hover { filter: brightness(1.1); }
-.tl-entry-icon { font-size: 15px; }
-.tl-entry-title { font-weight: 500; }
 
 /* --- 时间范围选择器（时间轴弹窗） --- */
 .time-range {
@@ -745,6 +719,35 @@ ul { list-style: none; }
 }
 .btn-budget-delete:hover { color: var(--color-danger); }
 
+/* 时间轴内嵌记账摘要 */
+.budget-mini {
+  background: var(--color-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  margin-top: var(--space-sm);
+  box-shadow: var(--shadow-card);
+}
+.budget-mini-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: var(--font-caption);
+  color: var(--color-text-light);
+}
+.budget-mini-amount {
+  font-weight: 700;
+  font-size: var(--font-body);
+}
+.budget-mini-amount.expense { color: var(--color-danger); }
+.budget-mini-amount.income { color: var(--color-success); }
+
+/* 记账次要按钮（日历详情区） */
+.btn-add-expense {
+  background: linear-gradient(135deg, #D4A574, #C49460);
+  margin-top: var(--space-sm);
+}
+
 /* ---------- 弹窗表单样式（通用） ---------- */
 .form-label {
   display: block;
@@ -800,10 +803,10 @@ ul { list-style: none; }
   padding-left: 2px;
 }
 
-/* 图标选择器（5列网格） */
+/* 图标选择器（自适应列数，窄屏自动减少） */
 .icon-picker {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
   gap: var(--space-sm);
 }
 .icon-picker-item {

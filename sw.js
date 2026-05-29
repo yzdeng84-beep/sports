@@ -6,7 +6,7 @@
 'use strict';
 
 // ---------- 缓存名称（版本变更时自动清理旧缓存） ----------
-const CACHE_NAME = 'cadence-v1';
+const CACHE_NAME = 'cadence-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
