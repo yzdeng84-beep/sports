@@ -130,6 +130,19 @@ const DB = (() => {
     });
   }
 
+  /** 按日期范围获取记录（通用私有方法） */
+  function getByDateRange(storeName, startDate, endDate) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
+      const index = store.index('date');
+      const range = IDBKeyRange.bound(startDate, endDate);
+      const request = index.getAll(range);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+
   /** 按ID获取单条记录 */
   function getById(storeName, id) {
     return new Promise((resolve, reject) => {
@@ -183,6 +196,33 @@ const DB = (() => {
       getAll: () => getAll('expenses'),
       getByDate: (date) => getByDate('expenses', date),
       getById: (id) => getById('expenses', id),
+      /** 按日期范围查询 */
+      getByDateRange: (start, end) => getByDateRange('expenses', start, end),
+      /** 按月份查询（year=2026, month=5 表示五月） */
+      getByMonth: (year, month) => {
+        const m = String(month).padStart(2, '0');
+        const start = `${year}-${m}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const end = `${year}-${m}-${String(lastDay).padStart(2, '0')}`;
+        return getByDateRange('expenses', start, end);
+      },
+      /** 按周查询（给定日期所在周，周一~周日） */
+      getByWeek: (dateStr) => {
+        const d = new Date(dateStr + 'T00:00:00');
+        const dayOfWeek = d.getDay(); // 0=周日
+        const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const mon = new Date(d);
+        mon.setDate(d.getDate() + diffToMon);
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        const fmt = (dt) => {
+          const y = dt.getFullYear();
+          const mm = String(dt.getMonth() + 1).padStart(2, '0');
+          const dd = String(dt.getDate()).padStart(2, '0');
+          return `${y}-${mm}-${dd}`;
+        };
+        return getByDateRange('expenses', fmt(mon), fmt(sun));
+      },
     }
   };
 })();

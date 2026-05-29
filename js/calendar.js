@@ -195,7 +195,7 @@ const CalendarModule = (() => {
     ];
 
     // 预设值（编辑模式从已有数据填充）
-    const defaultTitle = task ? (task.title || '') : '';
+    const defaultTitle = task ? (task.title || '') : IconsModule.getName(selectedIcon);
     const defaultTime = task ? (task.time || '07:00') : '07:00';
     const defaultDate = task ? task.date : selectedDate;
 
@@ -333,6 +333,15 @@ const CalendarModule = (() => {
           // 动态刷新训练参数字段
           const container = document.getElementById('detail-fields-container');
           if (container) container.innerHTML = fieldsHTML();
+          // 自动更新标题为所选图标名称（仅当标题为空或为已知图标名时覆盖）
+          const titleInput = document.getElementById('task-title');
+          if (titleInput) {
+            const currentTitle = titleInput.value.trim();
+            const knownNames = IconsModule.getAll().map(i => i.name);
+            if (!currentTitle || knownNames.includes(currentTitle)) {
+              titleInput.value = IconsModule.getName(selectedIcon);
+            }
+          }
         });
       });
     }

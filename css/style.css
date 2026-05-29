@@ -748,6 +748,130 @@ ul { list-style: none; }
   margin-top: var(--space-sm);
 }
 
+/* ---------- 消费图表 ---------- */
+.chart-container {
+  background: var(--color-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-card);
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.chart-period-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.chart-period-btn {
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-size: var(--font-caption);
+  font-weight: 500;
+  color: var(--color-text-light);
+  background: rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+.chart-period-btn.active {
+  background: var(--color-primary);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.chart-period-btn:active {
+  transform: scale(0.95);
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-legend {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+  margin-top: var(--space-xs);
+  font-size: var(--font-caption);
+  color: var(--color-text-light);
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.chart-legend-dot.expense { background: var(--color-danger); }
+.chart-legend-dot.income { background: var(--color-success); }
+
+/* ---------- 水平时间轴 SVG ---------- */
+.timeline-svg-wrapper {
+  position: relative;
+  background: var(--color-card-warm);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+.timeline-axis-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.timeline-zoom-controls {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+}
+
+.timeline-zoom-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: var(--font-body);
+  color: var(--color-primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 700;
+  transition: background 0.2s ease;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.timeline-zoom-btn:active {
+  background: rgba(107, 159, 212, 0.18);
+}
+
+/* SVG 内任务块 pointer */
+.tl-task-svg-block {
+  cursor: pointer;
+}
+.tl-task-svg-block:active {
+  opacity: 0.75;
+}
+
 /* ---------- 弹窗表单样式（通用） ---------- */
 .form-label {
   display: block;

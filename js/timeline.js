@@ -1,6 +1,6 @@
 /* ==========================================
    健身计划 App — 板块③：时间轴 + 记账
-   双层横向 + 子Tab切换
+   SVG 水平时间轴，一屏显示，支持缩放
    全局对象: TimelineModule
    ========================================== */
 
@@ -9,10 +9,14 @@ const TimelineModule = (() => {
 
   // ---------- 状态 ----------
   let selectedDate = null;
+  let zoomLevel = 1;           // 1 = 全天可见（viewBox 宽度 960）
+  let pinchStartDist = 0;
+  let pinchStartZoom = 1;
 
   // ---------- DOM 缓存 ----------
-  const $dates = document.getElementById('timeline-dates');
-  const $tracks = document.getElementById('timeline-tracks');
+  const $dates    = document.getElementById('timeline-dates');
+  const $axisSvg  = document.getElementById('timeline-axis-svg');
+  const $svgWrap  = document.getElementById('timeline-svg-wrapper');
   const $btnToday = document.getElementById('btn-today');
 
   // ---------- 工具函数 ----------
@@ -25,6 +29,19 @@ const TimelineModule = (() => {
   function getToday() {
     const now = new Date();
     return formatDate(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  function escapeXml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /** 将 HH:MM 时间转为 SVG X坐标（分钟偏移，06:00=0） */
+  function timeToX(timeStr) {
+    if (!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h * 60 + m) - 360; // 偏移 06:00
   }
 
   const weekNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -56,14 +73,12 @@ const TimelineModule = (() => {
       </div>
     `).join('');
 
-    // 点击事件
     $dates.querySelectorAll('.tl-date-card').forEach(card => {
       card.addEventListener('click', () => {
         selectDate(card.getAttribute('data-date'));
       });
     });
 
-    // 滚动到今天
     setTimeout(() => {
       const todayCard = $dates.querySelector('.tl-today');
       if (todayCard) {
@@ -72,57 +87,184 @@ const TimelineModule = (() => {
     }, 200);
   }
 
-  // ---------- 渲染任务列表（从日历任务同步） ----------
-  async function renderTracks() {
-    if (!selectedDate) return;
+  // ---------- 车道分配（避免任务块重叠） ----------
+  function assignLanes(tasks) {
+    const sorted = [...tasks].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const lanes  = [];
 
-    const tasks = await DB.tasks.getByDate(selectedDate);
+    for (const task of sorted) {
+      const taskX    = timeToX(task.time);
+      const taskEndX = taskX + 52; // 块宽50 + 间距2
 
-    if (tasks.length === 0) {
-      $tracks.innerHTML = `
-        <div class="empty-state">
-          <span class="empty-icon">🕐</span>
-          <p>还没有活动安排</p>
-          <p class="empty-hint">点击下方按钮添加活动吧</p>
-        </div>`;
-      return;
+      let assignedLane = -1;
+      for (let i = 0; i < lanes.length; i++) {
+        const lastInLane = lanes[i][lanes[i].length - 1];
+        const lastEndX   = timeToX(lastInLane.time) + 52;
+        if (taskX >= lastEndX + 6) {
+          assignedLane = i;
+          break;
+        }
+      }
+
+      if (assignedLane === -1) {
+        assignedLane = lanes.length;
+        lanes.push([]);
+      }
+
+      lanes[assignedLane].push(task);
     }
 
+    return lanes;
+  }
+
+  // ---------- 渲染 SVG 水平时间轴 ----------
+  async function renderAxisSVG() {
+    if (!$axisSvg) return;
+
+    const tasks = selectedDate ? await DB.tasks.getByDate(selectedDate) : [];
     tasks.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
-    $tracks.innerHTML = `<div class="tl-task-list">${tasks.map(t => {
-      const icon = typeof IconsModule !== 'undefined' ? IconsModule.getSVG(t.icon, 16) : '';
-      const summary = typeof CalendarModule !== 'undefined' ? CalendarModule.buildSummary(t.icon, t.details) : '';
-      return `
-        <div class="tl-task-block" data-id="${t.id}" style="border-left-color:${t.color || 'var(--color-primary)'}">
-          <span class="tl-task-icon">${icon}</span>
-          <span class="tl-task-time">${t.time || ''}</span>
-          <span class="tl-task-label">${t.title || ''}</span>
-          ${summary ? `<span class="tl-task-summary">${summary}</span>` : ''}
-        </div>
-      `;
-    }).join('')}</div>`;
+    const today = getToday();
+    let svg = '';
 
-    // 点击任务块 → 编辑（调用日历模块的编辑弹窗）
-    $tracks.querySelectorAll('.tl-task-block').forEach(el => {
-      el.addEventListener('click', async () => {
-        const id = el.getAttribute('data-id');
+    // --- 小时标记线和标签（06:00 — 22:00） ---
+    for (let h = 6; h <= 22; h++) {
+      const x = (h - 6) * 60;
+
+      // 网格虚线
+      svg += `<line x1="${x}" y1="24" x2="${x}" y2="158" stroke="#E8E5E0" stroke-width="1" stroke-dasharray="3,4"/>`;
+
+      // 整点标签
+      svg += `<text x="${x}" y="14" text-anchor="middle" font-size="10" fill="#8B8B8B" font-family="inherit">${String(h).padStart(2, '0')}:00</text>`;
+
+      // 上下刻度
+      svg += `<line x1="${x}" y1="22" x2="${x}" y2="24" stroke="#C5C0BA" stroke-width="1"/>`;
+    }
+
+    // --- 当前时间指示器（仅今天） ---
+    if (selectedDate === today) {
+      const now   = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const nowX   = nowMin - 360;
+      if (nowX >= 0 && nowX <= 960) {
+        svg += `<line x1="${nowX}" y1="22" x2="${nowX}" y2="158" stroke="#D48686" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>`;
+        svg += `<circle cx="${nowX}" cy="23" r="3.5" fill="#D48686"/>`;
+      }
+    }
+
+    // --- 任务块 ---
+    if (tasks.length === 0) {
+      svg += `<text x="480" y="100" text-anchor="middle" font-size="13" fill="#8B8B8B" font-family="inherit">暂无活动安排 🕐</text>`;
+    } else {
+      const lanes = assignLanes(tasks);
+
+      lanes.forEach((lane, laneIdx) => {
+        const y = 46 + laneIdx * 38;
+
+        lane.forEach(task => {
+          const x     = timeToX(task.time || '06:00');
+          const color = task.color || '#6B9FD4';
+          const title = (task.title || '').substring(0, 6);
+
+          svg += `<g class="tl-task-svg-block" data-id="${task.id}" style="cursor:pointer">`;
+          // 任务色块
+          svg += `<rect x="${x}" y="${y}" width="50" height="34" rx="6" fill="${color}" opacity="0.88"/>`;
+          // 图标（小号）
+          if (typeof IconsModule !== 'undefined') {
+            const iconSvg = IconsModule.getSVG(task.icon, 14)
+              .replace('<svg ', `<svg x="${x + 4}" y="${y + 3}" `);
+            svg += iconSvg;
+          }
+          // 标题文字
+          svg += `<text x="${x + 22}" y="${y + 26}" text-anchor="middle" font-size="9" fill="#FFF" font-weight="600" font-family="inherit">${escapeXml(title)}</text>`;
+          svg += `</g>`;
+        });
+      });
+    }
+
+    $axisSvg.innerHTML = svg;
+
+    // 点击任务块 → 编辑
+    bindAxisBlockEvents();
+  }
+
+  /** 绑定 SVG 任务块点击事件 */
+  function bindAxisBlockEvents() {
+    $axisSvg.querySelectorAll('.tl-task-svg-block').forEach(g => {
+      g.addEventListener('click', async () => {
+        const id   = g.getAttribute('data-id');
         const task = await DB.tasks.getById(id);
         if (task && typeof CalendarModule !== 'undefined') {
           CalendarModule.showAddForm(task);
-          // 编辑保存后刷新时间轴
-          const origSave = document.getElementById('btn-save-task');
-          if (origSave) {
-            origSave.addEventListener('click', () => {
-              setTimeout(() => renderTracks(), 300);
-            }, { once: true });
-          }
+          // 保存后刷新
+          setTimeout(() => {
+            const saveBtn = document.getElementById('btn-save-task');
+            if (saveBtn) {
+              saveBtn.addEventListener('click', () => {
+                setTimeout(() => { renderAxisSVG(); renderBudgetMini(); }, 300);
+              }, { once: true });
+            }
+          }, 100);
         }
       });
     });
   }
 
-  // ---------- 选中日期（同步刷新时间轴、记账摘要和记账列表） ----------
+  // ---------- 缩放功能 ----------
+  function zoomIn() {
+    zoomLevel = Math.min(zoomLevel * 1.5, 5);
+    applyZoom();
+  }
+
+  function zoomOut() {
+    zoomLevel = Math.max(zoomLevel / 1.5, 1);
+    applyZoom();
+  }
+
+  function applyZoom() {
+    if (!$axisSvg) return;
+    const baseW = 960;
+    const newW  = baseW / zoomLevel;
+    $axisSvg.setAttribute('viewBox', `0 0 ${newW} 180`);
+    // 缩放 >1x 时可横向滚动
+    if ($svgWrap) {
+      $svgWrap.style.overflowX = zoomLevel > 1 ? 'auto' : 'hidden';
+    }
+  }
+
+  // ---------- 双指缩放 ----------
+  function bindPinchZoom() {
+    if (!$svgWrap) return;
+
+    $svgWrap.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        pinchStartDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        pinchStartZoom = zoomLevel;
+      }
+    }, { passive: true });
+
+    $svgWrap.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        if (pinchStartDist > 0) {
+          zoomLevel = Math.min(5, Math.max(1, pinchStartZoom * (currentDist / pinchStartDist)));
+          applyZoom();
+        }
+      }
+    }, { passive: true });
+
+    $svgWrap.addEventListener('touchend', () => {
+      pinchStartDist = 0;
+    }, { passive: true });
+  }
+
+  // ---------- 选中日期 ----------
   function selectDate(dateStr) {
     selectedDate = dateStr;
 
@@ -130,15 +272,14 @@ const TimelineModule = (() => {
       c.classList.toggle('tl-selected', c.getAttribute('data-date') === dateStr);
     });
 
-    // 刷新时间轴和记账
-    renderTracks();
+    renderAxisSVG();
     renderBudgetMini();
     if (typeof BudgetModule !== 'undefined') {
-      BudgetModule.render(); // 刷新完整记账列表
+      BudgetModule.render();
     }
   }
 
-  // ---------- 收支摘要（嵌入时间轴画布内） ----------
+  // ---------- 收支摘要 ----------
   async function renderBudgetMini() {
     const mini = document.getElementById('budget-mini');
     if (!mini || !selectedDate) return;
@@ -149,10 +290,11 @@ const TimelineModule = (() => {
 
   // ---------- 渲染入口 ----------
   async function render() {
+    zoomLevel = 1;
+    applyZoom();
     renderDateCards();
-    await renderTracks();
+    await renderAxisSVG();
     await renderBudgetMini();
-    // 同时刷新记账列表（时间轴页面下方的完整记账区）
     if (typeof BudgetModule !== 'undefined') {
       await BudgetModule.render();
     }
@@ -160,7 +302,6 @@ const TimelineModule = (() => {
 
   // ---------- 事件绑定 ----------
   function bindEvents() {
-    // 今天按钮
     $btnToday.addEventListener('click', () => {
       selectDate(getToday());
       const todayCard = $dates.querySelector('.tl-today');
@@ -169,23 +310,27 @@ const TimelineModule = (() => {
       }
     });
 
-    // 添加活动 → 打开日历任务弹窗（统一使用日历任务管理）
+    // 缩放按钮
+    document.getElementById('tl-zoom-in') .addEventListener('click', zoomIn);
+    document.getElementById('tl-zoom-out').addEventListener('click', zoomOut);
+    bindPinchZoom();
+
+    // 添加活动
     document.getElementById('btn-add-entry').addEventListener('click', () => {
       if (typeof CalendarModule !== 'undefined') {
         CalendarModule.showAddForm();
-        // 保存后刷新时间轴
         setTimeout(() => {
           const saveBtn = document.getElementById('btn-save-task');
           if (saveBtn) {
             saveBtn.addEventListener('click', () => {
-              setTimeout(() => { renderTracks(); renderBudgetMini(); }, 300);
+              setTimeout(() => { renderAxisSVG(); renderBudgetMini(); }, 300);
             }, { once: true });
           }
         }, 100);
       }
     });
 
-    // 记账按钮 → 打开记账弹窗
+    // 记账按钮
     const btnExpense = document.getElementById('btn-add-expense');
     if (btnExpense && typeof BudgetModule !== 'undefined') {
       btnExpense.addEventListener('click', () => {

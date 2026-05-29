@@ -107,6 +107,16 @@ const BudgetModule = (() => {
         }
       });
     });
+
+    // 刷新图表
+    if (typeof ChartModule !== 'undefined') {
+      const canvas = document.getElementById('chart-canvas');
+      if (canvas) {
+        const activeBtn = document.querySelector('.chart-period-btn.active');
+        const period = activeBtn ? activeBtn.getAttribute('data-period') : 'week';
+        ChartModule.render(canvas, period);
+      }
+    }
   }
 
   function escapeHtml(str) {
@@ -134,6 +144,19 @@ const BudgetModule = (() => {
   function bindEvents() {
     $addBtn.addEventListener('click', () => {
       showAddForm();
+    });
+
+    // 图表周期切换按钮
+    document.querySelectorAll('.chart-period-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.chart-period-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const period = btn.getAttribute('data-period');
+        const canvas = document.getElementById('chart-canvas');
+        if (canvas && typeof ChartModule !== 'undefined') {
+          ChartModule.render(canvas, period);
+        }
+      });
     });
   }
 
