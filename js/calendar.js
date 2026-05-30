@@ -119,10 +119,14 @@ const CalendarModule = (() => {
         <li class="detail-empty">暂无计划，点击下方按钮添加</li>`;
     } else {
       $detailTasks.innerHTML = tasks.map(t => {
-        const summary = buildSummary(t.icon, t.details);
+        const isActivity = (t.category === 'activity');
+        const summary = isActivity ? '' : buildSummary(t.icon, t.details);
+        const iconHtml = isActivity
+          ? `<span class="task-icon task-icon-emoji">${t.icon}</span>`
+          : IconsModule.getSVG(t.icon, 18);
         return `
-        <li class="detail-task-item" data-id="${t.id}">
-          <span class="task-icon">${IconsModule.getSVG(t.icon, 18)}</span>
+        <li class="detail-task-item" data-id="${t.id}" data-category="${t.category || 'fitness'}">
+          <span class="task-icon">${iconHtml}</span>
           <span class="task-time">${t.time}</span>
           <span class="task-title">${t.title}</span>
           ${summary ? `<span class="task-summary">${summary}</span>` : ''}
@@ -130,12 +134,17 @@ const CalendarModule = (() => {
         </li>
       `}).join('');
 
-      // 点击任务项 → 编辑
+      // 点击任务项 → 编辑（根据 category 分支到不同表单）
       $detailTasks.querySelectorAll('.detail-task-item').forEach(item => {
         item.addEventListener('click', async () => {
           const id = item.getAttribute('data-id');
           const task = await DB.tasks.getById(id);
-          if (task) showAddForm(task);
+          if (!task) return;
+          if (task.category === 'activity') {
+            showActivityForm(task);
+          } else {
+            showAddForm(task);
+          }
         });
       });
 
@@ -401,6 +410,7 @@ const CalendarModule = (() => {
             title: title,
             icon: selectedIcon,
             color: selectedColor,
+            category: 'fitness',
             details: Object.keys(details).length > 0 ? details : undefined,
             createdAt: task.createdAt,
           });
@@ -601,6 +611,7 @@ const CalendarModule = (() => {
                 title: item.title || IconsModule.getName(item.icon),
                 icon: item.icon,
                 color: item.color,
+                category: 'fitness',
                 details: Object.keys(item.details).length > 0 ? item.details : undefined,
               });
             }
@@ -638,6 +649,570 @@ const CalendarModule = (() => {
 
     overlay.classList.add('show');
     renderBatchUI();
+  }
+
+  // ---------- 弹出添加/编辑活动弹窗 ----------
+  // activity: 编辑模式传入已有活动数据；新建模式不传
+  function showActivityForm(activity) {
+    // 未选日期时自动使用今天
+    if (!selectedDate && !activity) {
+      selectedDate = getToday();
+    }
+
+    const isEdit = !!activity;
+    const overlay = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-content');
+    const allActivities = ActivitiesModule.getAll();
+
+    // 预设颜色（8色，比健身多2色：金 + 灰蓝）
+    const colors = [
+      { color: '#6B9FD4', name: '蓝' },
+      { color: '#86BDA0', name: '绿' },
+      { color: '#D4A574', name: '棕' },
+      { color: '#D48686', name: '红' },
+      { color: '#B0A8C6', name: '紫' },
+      { color: '#8BB8D0', name: '青' },
+      { color: '#E8B84B', name: '金' },
+      { color: '#A0B0C0', name: '灰蓝' },
+    ];
+
+    // 当前选中状态
+    let selectedActId, selectedColor, selectedTime, selectedTitle;
+    const defaultDate = activity ? activity.date : selectedDate;
+
+    if (isEdit) {
+      // 编辑模式：从已有数据填充
+      // 查找匹配的活动类型（尝试用 emoji 匹配）
+      const matchAct = allActivities.find(a => a.emoji === activity.icon || a.id === activity.icon);
+      selectedActId = matchAct ? matchAct.id : (allActivities[0] ? allActivities[0].id : '');
+      selectedColor = activity.color || colors[0].color;
+      selectedTime = activity.time || getCurrentTime();
+      selectedTitle = activity.title || '';
+    } else {
+      // 新建模式：默认第一个活动类型
+      selectedActId = allActivities[0] ? allActivities[0].id : '';
+      const defaultAct = allActivities[0];
+      selectedColor = defaultAct ? defaultAct.color : colors[0].color;
+      selectedTime = getCurrentTime();
+      selectedTitle = defaultAct ? defaultAct.name : '';
+    }
+
+    /** 根据选中的活动类型更新颜色和标题 */
+    function applyActivityDefaults() {
+      const act = ActivitiesModule.getById(selectedActId);
+      if (act && !isEdit) {
+        selectedColor = act.color;
+        selectedTitle = act.name;
+      }
+    }
+
+    // 渲染活动 emoji 选择器
+    function activityPickerHTML() {
+      return allActivities.map(act => `
+        <div class="activity-picker-item ${act.id === selectedActId ? 'selected' : ''}"
+             data-act-id="${act.id}" title="${act.name}">
+          <span class="activity-picker-emoji">${act.emoji}</span>
+          <span class="activity-picker-name">${act.name}</span>
+          ${ActivitiesModule.isCustom(act.id) ? '<span class="badge-custom">自定义</span>' : ''}
+        </div>
+      `).join('');
+    }
+
+    // 渲染颜色选择器
+    function colorPickerHTML() {
+      return colors.map(c => `
+        <span class="color-dot ${c.color === selectedColor ? 'selected' : ''}"
+              data-color="${c.color}"
+              style="background:${c.color};"
+              title="${c.name}"></span>
+      `).join('');
+    }
+
+    // ========== 编辑模式 ==========
+    if (isEdit) {
+      content.innerHTML = `
+        <h3 style="margin-bottom:16px;color:var(--color-primary-dark);font-weight:600;">
+          ✏️ 编辑活动
+        </h3>
+
+        <div class="form-section">
+          <span class="form-label">📌 选择活动</span>
+          <div class="activity-picker-grid" id="activity-picker">
+            ${activityPickerHTML()}
+          </div>
+          <button class="btn-text" id="btn-manage-activities" style="margin-top:var(--space-sm);">+ 管理自定义活动</button>
+        </div>
+
+        <div class="form-section" style="display:flex;gap:var(--space-sm);">
+          <div style="flex:1;">
+            <span class="form-label">⏰ 时间</span>
+            <input type="time" class="form-input" id="activity-time" value="${selectedTime}">
+          </div>
+          <div style="flex:1;">
+            <span class="form-label">🎨 标签颜色</span>
+            <div class="color-picker" id="color-picker" style="padding-top:6px;">
+              ${colorPickerHTML()}
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <span class="form-label">📝 标题</span>
+          <input type="text" class="form-input" id="activity-title" placeholder="活动名称" value="${escapeHtml(selectedTitle)}">
+        </div>
+
+        <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md);">
+          <button id="btn-delete-activity" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(212,134,134,0.15);color:var(--color-danger);font-weight:600;">删除</button>
+          <button id="btn-cancel-activity" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,0,0,0.04);font-weight:600;color:var(--color-text-light);">取消</button>
+          <button id="btn-save-activity" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:var(--color-primary);color:#FFF;font-weight:600;">保存</button>
+        </div>
+      `;
+
+      overlay.classList.add('show');
+
+      // 绑定事件
+      setTimeout(() => {
+        bindActivityPickerEvents();
+        bindColorPickerEvents();
+
+        document.getElementById('btn-cancel-activity').addEventListener('click', () => {
+          overlay.classList.remove('show');
+        });
+
+        document.getElementById('btn-delete-activity').addEventListener('click', async () => {
+          if (confirm('确定删除这个活动吗？')) {
+            await DB.tasks.remove(activity.id);
+            overlay.classList.remove('show');
+            loadDayDetail(activity.date);
+            renderGrid();
+          }
+        });
+
+        document.getElementById('btn-save-activity').addEventListener('click', async () => {
+          const title = document.getElementById('activity-title').value.trim();
+          const time = document.getElementById('activity-time').value || getCurrentTime();
+          // 使用当前选中的活动 emoji
+          const act = ActivitiesModule.getById(selectedActId);
+          const icon = act ? act.emoji : '📌';
+
+          try {
+            await DB.tasks.update({
+              id: activity.id,
+              date: defaultDate,
+              time: time,
+              title: title || (act ? act.name : ''),
+              icon: icon,
+              color: selectedColor,
+              category: 'activity',
+              createdAt: activity.createdAt,
+            });
+            overlay.classList.remove('show');
+            loadDayDetail(defaultDate);
+            renderGrid();
+          } catch (err) {
+            console.error('活动保存失败:', err);
+            alert('保存失败，请重试。\n错误：' + (err.message || '未知错误'));
+          }
+        });
+
+        document.getElementById('btn-manage-activities').addEventListener('click', () => {
+          showActivityManager(() => {
+            // 刷新选择器
+            const picker = document.getElementById('activity-picker');
+            if (picker) {
+              // 重新获取 allActivities（已更新）
+              const updated = ActivitiesModule.getAll();
+              selectedActId = updated[0] ? updated[0].id : '';
+              picker.innerHTML = activityPickerHTML();
+              bindActivityPickerEvents();
+            }
+          });
+        });
+      }, 0);
+
+      return;
+    }
+
+    // ========== 批量添加模式 ==========
+    const batchItems = [];
+    let activeIndex = 0;
+
+    // 初始化第一个批量项
+    const initAct = ActivitiesModule.getById(selectedActId);
+    batchItems.push({
+      actId: selectedActId,
+      emoji: initAct ? initAct.emoji : '📌',
+      color: selectedColor,
+      time: selectedTime,
+      title: selectedTitle,
+    });
+
+    /** 渲染批量活动 UI */
+    function renderBatchUI() {
+      const item = batchItems[activeIndex] || batchItems[0];
+
+      content.innerHTML = `
+        <h3 style="margin-bottom:12px;color:var(--color-primary-dark);font-weight:600;">
+          📋 添加活动
+        </h3>
+
+        <!-- 已添加的活动 chip 列表 -->
+        <div class="batch-chips-row" id="batch-activity-chips" style="margin-bottom:var(--space-sm);">
+          ${batchItems.map((bi, idx) => `
+            <div class="batch-chip${idx === activeIndex ? ' active' : ''}" data-index="${idx}">
+              <span class="batch-chip-emoji">${bi.emoji}</span>
+              <span class="batch-chip-label">${bi.title}</span>
+              <span class="batch-chip-time">${bi.time}</span>
+              ${batchItems.length > 1 ? `<span class="batch-chip-remove" data-remove="${idx}">×</span>` : ''}
+            </div>
+          `).join('')}
+          <button class="btn-add-another" id="btn-add-another-activity" title="再添加一个活动">+ 添加活动</button>
+        </div>
+
+        <!-- 当前编辑项 -->
+        <div class="batch-edit-section" id="batch-edit-section">
+          <div class="batch-edit-divider">正在编辑 #${activeIndex + 1}</div>
+
+          <div class="form-section">
+            <span class="form-label">📌 选择活动</span>
+            <div class="activity-picker-grid" id="activity-picker">
+              ${activityPickerHTML()}
+            </div>
+            <button class="btn-text" id="btn-manage-activities" style="margin-top:var(--space-sm);">+ 管理自定义活动</button>
+          </div>
+
+          <div class="form-section" style="display:flex;gap:var(--space-sm);">
+            <div style="flex:1;">
+              <span class="form-label">⏰ 时间</span>
+              <input type="time" class="form-input" id="activity-time" value="${item.time}">
+            </div>
+            <div style="flex:1;">
+              <span class="form-label">🎨 标签颜色</span>
+              <div class="color-picker" id="color-picker" style="padding-top:6px;">
+                ${colorPickerHTML()}
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <span class="form-label">📝 标题</span>
+            <input type="text" class="form-input" id="activity-title" placeholder="活动名称" value="${escapeHtml(item.title)}">
+          </div>
+        </div>
+
+        <!-- 底部按钮 -->
+        <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md);">
+          <button id="btn-cancel-batch-activity" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,0,0,0.04);font-weight:600;color:var(--color-text-light);">取消</button>
+          <button id="btn-save-batch-activity" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:var(--color-primary);color:#FFF;font-weight:600;">
+            保存全部 (${batchItems.length} 项)
+          </button>
+        </div>
+      `;
+
+      bindBatchActivityEvents();
+    }
+
+    /** 将当前 DOM 值写回 batchItems[activeIndex] */
+    function saveCurrentToActive() {
+      if (batchItems.length === 0 || activeIndex < 0) return;
+      const titleEl = document.getElementById('activity-title');
+      const timeEl = document.getElementById('activity-time');
+      if (titleEl) batchItems[activeIndex].title = titleEl.value.trim();
+      if (timeEl) batchItems[activeIndex].time = timeEl.value || getCurrentTime();
+      batchItems[activeIndex].actId = selectedActId;
+      batchItems[activeIndex].color = selectedColor;
+      const act = ActivitiesModule.getById(selectedActId);
+      batchItems[activeIndex].emoji = act ? act.emoji : '📌';
+    }
+
+    /** 绑定批量模式事件 */
+    function bindBatchActivityEvents() {
+      // Chip 点击切换
+      document.querySelectorAll('#batch-activity-chips .batch-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+          if (e.target.classList.contains('batch-chip-remove')) return;
+          saveCurrentToActive();
+          activeIndex = parseInt(chip.getAttribute('data-index'));
+          renderBatchUI();
+        });
+      });
+
+      // Chip 删除
+      document.querySelectorAll('.batch-chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.getAttribute('data-remove'));
+          batchItems.splice(idx, 1);
+          if (activeIndex >= batchItems.length) activeIndex = batchItems.length - 1;
+          if (batchItems.length === 0) {
+            overlay.classList.remove('show');
+            return;
+          }
+          renderBatchUI();
+        });
+      });
+
+      // 添加另一项
+      const addBtn = document.getElementById('btn-add-another-activity');
+      if (addBtn) {
+        addBtn.addEventListener('click', () => {
+          saveCurrentToActive();
+          const act = ActivitiesModule.getById(selectedActId);
+          batchItems.push({
+            actId: selectedActId,
+            emoji: act ? act.emoji : '📌',
+            color: selectedColor,
+            time: getCurrentTime(),
+            title: act ? act.name : '',
+          });
+          activeIndex = batchItems.length - 1;
+          renderBatchUI();
+        });
+      }
+
+      // 活动选择器
+      bindActivityPickerEvents();
+
+      // 颜色选择器
+      bindColorPickerEvents();
+
+      // 管理自定义活动
+      const manageBtn = document.getElementById('btn-manage-activities');
+      if (manageBtn) {
+        manageBtn.addEventListener('click', () => {
+          saveCurrentToActive();
+          showActivityManager(() => {
+            // 刷新选择器
+            const picker = document.getElementById('activity-picker');
+            if (picker) {
+              picker.innerHTML = activityPickerHTML();
+              bindActivityPickerEvents();
+            }
+          });
+        });
+      }
+
+      // 取消
+      document.getElementById('btn-cancel-batch-activity').addEventListener('click', () => {
+        overlay.classList.remove('show');
+      });
+
+      // 批量保存
+      document.getElementById('btn-save-batch-activity').addEventListener('click', async () => {
+        saveCurrentToActive();
+        if (batchItems.length === 0) {
+          alert('请至少添加一个活动');
+          return;
+        }
+        try {
+          for (const item of batchItems) {
+            await DB.tasks.add({
+              date: defaultDate,
+              time: item.time,
+              title: item.title || ActivitiesModule.getName(item.actId),
+              icon: item.emoji,
+              color: item.color,
+              category: 'activity',
+            });
+          }
+          overlay.classList.remove('show');
+          loadDayDetail(defaultDate);
+          renderGrid();
+        } catch (err) {
+          console.error('批量保存活动失败:', err);
+          alert('保存失败，请重试。\n错误：' + (err.message || '未知错误'));
+        }
+      });
+    }
+
+    /** 绑定活动选择器事件 */
+    function bindActivityPickerEvents() {
+      document.querySelectorAll('.activity-picker-item').forEach(item => {
+        item.addEventListener('click', () => {
+          selectedActId = item.getAttribute('data-act-id');
+          applyActivityDefaults();
+          // 刷新选择器和颜色
+          const picker = document.getElementById('activity-picker');
+          if (picker) {
+            picker.innerHTML = activityPickerHTML();
+            bindActivityPickerEvents();
+          }
+          const colorPicker = document.getElementById('color-picker');
+          if (colorPicker) {
+            colorPicker.innerHTML = colorPickerHTML();
+            bindColorPickerEvents();
+          }
+          const titleEl = document.getElementById('activity-title');
+          if (titleEl && !isEdit) {
+            titleEl.value = selectedTitle;
+          }
+        });
+      });
+    }
+
+    /** 绑定颜色选择器事件 */
+    function bindColorPickerEvents() {
+      document.querySelectorAll('#color-picker .color-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          selectedColor = dot.getAttribute('data-color');
+          const colorPicker = document.getElementById('color-picker');
+          if (colorPicker) {
+            colorPicker.innerHTML = colorPickerHTML();
+            bindColorPickerEvents();
+          }
+        });
+      });
+    }
+
+    // 启动渲染
+    renderBatchUI();
+    overlay.classList.add('show');
+  }
+
+  // ---------- 自定义活动管理弹窗 ----------
+  function showActivityManager(onSaved) {
+    const overlay = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-content');
+    const customActs = ActivitiesModule.loadCustomActivities();
+
+    // 颜色选择（复用8色）
+    const colors = [
+      { color: '#6B9FD4', name: '蓝' },
+      { color: '#86BDA0', name: '绿' },
+      { color: '#D4A574', name: '棕' },
+      { color: '#D48686', name: '红' },
+      { color: '#B0A8C6', name: '紫' },
+      { color: '#8BB8D0', name: '青' },
+      { color: '#E8B84B', name: '金' },
+      { color: '#A0B0C0', name: '灰蓝' },
+    ];
+
+    let selectedEmoji = '📌';
+    let selectedColor = colors[0].color;
+
+    function render() {
+      content.innerHTML = `
+        <h3 style="margin-bottom:16px;color:var(--color-primary-dark);font-weight:600;">
+          🏷️ 管理自定义活动
+        </h3>
+
+        <!-- 已有自定义活动列表 -->
+        <div style="margin-bottom:var(--space-md);">
+          ${customActs.length === 0
+            ? '<p style="color:var(--color-text-light);text-align:center;">暂无自定义活动，请在下方添加</p>'
+            : `<div class="custom-list">${customActs.map(ca => `
+                <div class="custom-list-item">
+                  <span style="font-size:20px;">${ca.emoji}</span>
+                  <span style="flex:1;font-weight:600;">${ca.name}</span>
+                  <span class="color-dot-mini" style="background:${ca.color};display:inline-block;width:16px;height:16px;border-radius:50%;margin-right:var(--space-sm);"></span>
+                  <button class="btn-custom-delete" data-id="${ca.id}" style="background:rgba(212,134,134,0.15);color:var(--color-danger);padding:4px 12px;border-radius:var(--radius-sm);">删除</button>
+                </div>
+              `).join('')}</div>`
+          }
+        </div>
+
+        <!-- 添加新自定义活动 -->
+        <div style="border-top:1px solid var(--color-border);padding-top:var(--space-md);">
+          <span class="form-label">➕ 添加自定义活动</span>
+
+          <div style="margin-top:var(--space-sm);">
+            <span class="form-label" style="font-size:12px;">选择 Emoji</span>
+            <div class="emoji-picker-grid" id="emoji-picker-grid">
+              ${ActivitiesModule.EMOJI_OPTIONS.map(e => `
+                <span class="emoji-option${e === selectedEmoji ? ' selected' : ''}" data-emoji="${e}">${e}</span>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="form-section">
+            <span class="form-label">活动名称</span>
+            <input type="text" class="form-input" id="custom-act-name" placeholder="例如：遛狗、画画">
+          </div>
+
+          <div class="form-section">
+            <span class="form-label">标签颜色</span>
+            <div class="color-picker" id="custom-color-picker" style="padding-top:4px;">
+              ${colors.map(c => `
+                <span class="color-dot ${c.color === selectedColor ? 'selected' : ''}"
+                      data-color="${c.color}"
+                      style="background:${c.color};"
+                      title="${c.name}"></span>
+              `).join('')}
+            </div>
+          </div>
+
+          <button id="btn-add-custom-act" style="width:100%;padding:var(--space-md);border-radius:var(--radius-sm);background:var(--color-primary);color:#FFF;font-weight:600;margin-top:var(--space-sm);">
+            添加自定义活动
+          </button>
+        </div>
+
+        <button id="btn-close-manager" style="width:100%;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,0,0,0.04);font-weight:600;color:var(--color-text-light);margin-top:var(--space-sm);">
+          完成
+        </button>
+      `;
+
+      // 绑定 emoji 选择
+      document.querySelectorAll('.emoji-option').forEach(el => {
+        el.addEventListener('click', () => {
+          selectedEmoji = el.getAttribute('data-emoji');
+          document.querySelectorAll('.emoji-option').forEach(e => e.classList.remove('selected'));
+          el.classList.add('selected');
+        });
+      });
+
+      // 绑定颜色选择
+      document.querySelectorAll('#custom-color-picker .color-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          selectedColor = dot.getAttribute('data-color');
+          document.querySelectorAll('#custom-color-picker .color-dot').forEach(d => d.classList.remove('selected'));
+          dot.classList.add('selected');
+        });
+      });
+
+      // 绑定删除
+      document.querySelectorAll('.btn-custom-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const idx = customActs.findIndex(c => c.id === id);
+          if (idx >= 0 && confirm(`确定删除"${customActs[idx].name}"吗？已有记录不受影响。`)) {
+            customActs.splice(idx, 1);
+            ActivitiesModule.saveCustomActivities(customActs);
+            render();
+          }
+        });
+      });
+
+      // 绑定添加
+      document.getElementById('btn-add-custom-act').addEventListener('click', () => {
+        const nameEl = document.getElementById('custom-act-name');
+        const name = nameEl ? nameEl.value.trim() : '';
+        if (!name) { alert('请输入活动名称'); return; }
+        if (customActs.some(c => c.name === name)) { alert('该名称已存在'); return; }
+
+        const newAct = {
+          id: ActivitiesModule.generateId(),
+          name: name,
+          emoji: selectedEmoji,
+          color: selectedColor,
+        };
+        customActs.push(newAct);
+        ActivitiesModule.saveCustomActivities(customActs);
+        // 重置表单
+        selectedEmoji = '📌';
+        selectedColor = colors[0].color;
+        render();
+      });
+
+      // 关闭
+      document.getElementById('btn-close-manager').addEventListener('click', () => {
+        if (onSaved) onSaved();
+        // 返回活动表单（重新渲染 showActivityForm 以刷新选择器）
+        overlay.classList.remove('show');
+      });
+    }
+
+    render();
+    overlay.classList.add('show');
   }
 
   // HTML 转义工具
@@ -678,10 +1253,18 @@ const CalendarModule = (() => {
     $prevBtn.addEventListener('click', () => changeMonth(-1));
     $nextBtn.addEventListener('click', () => changeMonth(1));
 
-    // 添加计划按钮 → 弹出添加任务弹窗
+    // 添加健身计划按钮
     document.getElementById('btn-add-task').addEventListener('click', () => {
       showAddForm();
     });
+
+    // 添加活动按钮
+    const btnAddActivity = document.getElementById('btn-add-activity');
+    if (btnAddActivity) {
+      btnAddActivity.addEventListener('click', () => {
+        showActivityForm();
+      });
+    }
 
     // 记账按钮（日历详情区） → 弹出记账弹窗
     const btnExpenseCal = document.getElementById('btn-add-expense-cal');
@@ -698,6 +1281,8 @@ const CalendarModule = (() => {
     bindEvents,
     selectDate,
     showAddForm,
+    showActivityForm,
+    showActivityManager,
     buildSummary,
     getSelectedDate: () => selectedDate,
   };

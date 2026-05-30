@@ -169,18 +169,25 @@ const TimelineModule = (() => {
           const x     = timeToX(task.time || '06:00');
           const color = task.color || '#6B9FD4';
           const title = (task.title || '').substring(0, 6);
+          const isActivity = (task.category === 'activity');
 
           svg += `<g class="tl-task-svg-block" data-id="${task.id}" style="cursor:pointer">`;
           // 任务色块
           svg += `<rect x="${x}" y="${y}" width="50" height="34" rx="6" fill="${color}" opacity="0.88"/>`;
-          // 图标（小号）
-          if (typeof IconsModule !== 'undefined') {
-            const iconSvg = IconsModule.getSVG(task.icon, 14)
-              .replace('<svg ', `<svg x="${x + 4}" y="${y + 3}" `);
-            svg += iconSvg;
+
+          if (isActivity) {
+            // 活动：用 emoji 文字替代 SVG 图标
+            svg += `<text x="${x + 10}" y="${y + 18}" font-size="14" font-family="inherit">${escapeXml(task.icon || '📌')}</text>`;
+          } else {
+            // 健身：使用 SVG 图标
+            if (typeof IconsModule !== 'undefined') {
+              const iconSvg = IconsModule.getSVG(task.icon, 14)
+                .replace('<svg ', `<svg x="${x + 4}" y="${y + 3}" `);
+              svg += iconSvg;
+            }
           }
           // 标题文字
-          svg += `<text x="${x + 22}" y="${y + 26}" text-anchor="middle" font-size="9" fill="#FFF" font-weight="600" font-family="inherit">${escapeXml(title)}</text>`;
+          svg += `<text x="${x + 25}" y="${y + 26}" text-anchor="middle" font-size="9" fill="#FFF" font-weight="600" font-family="inherit">${escapeXml(title)}</text>`;
           svg += `</g>`;
         });
       });
@@ -198,9 +205,27 @@ const TimelineModule = (() => {
       g.addEventListener('click', async () => {
         const id   = g.getAttribute('data-id');
         const task = await DB.tasks.getById(id);
-        if (task && typeof CalendarModule !== 'undefined') {
+        if (!task || typeof CalendarModule === 'undefined') return;
+
+        if (task.category === 'activity') {
+          // 活动 → 打开活动编辑表单
+          CalendarModule.showActivityForm(task);
+          setTimeout(() => {
+            const saveBtns = [
+              document.getElementById('btn-save-activity'),
+              document.getElementById('btn-save-batch-activity'),
+            ];
+            saveBtns.forEach(btn => {
+              if (btn) {
+                btn.addEventListener('click', () => {
+                  setTimeout(() => { renderAxisSVG(); renderBudgetMini(); }, 300);
+                }, { once: true });
+              }
+            });
+          }, 100);
+        } else {
+          // 健身 → 打开健身编辑表单
           CalendarModule.showAddForm(task);
-          // 保存后刷新
           setTimeout(() => {
             const saveBtn = document.getElementById('btn-save-task');
             if (saveBtn) {
@@ -403,17 +428,23 @@ const TimelineModule = (() => {
     document.getElementById('tl-zoom-out').addEventListener('click', zoomOut);
     bindPanZoom();
 
-    // 添加活动
+    // 添加活动 → 打开活动表单
     document.getElementById('btn-add-entry').addEventListener('click', () => {
       if (typeof CalendarModule !== 'undefined') {
-        CalendarModule.showAddForm();
+        CalendarModule.showActivityForm();
+        // 监听保存按钮（活动表单：批量保存 + 单条保存）
         setTimeout(() => {
-          const saveBtn = document.getElementById('btn-save-task');
-          if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
-              setTimeout(() => { renderAxisSVG(); renderBudgetMini(); }, 300);
-            }, { once: true });
-          }
+          const saveBtns = [
+            document.getElementById('btn-save-batch-activity'),
+            document.getElementById('btn-save-activity'),
+          ];
+          saveBtns.forEach(btn => {
+            if (btn) {
+              btn.addEventListener('click', () => {
+                setTimeout(() => { renderAxisSVG(); renderBudgetMini(); }, 300);
+              }, { once: true });
+            }
+          });
         }, 100);
       }
     });
