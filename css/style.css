@@ -849,6 +849,34 @@ ul { list-style: none; }
 .chart-legend-dot.expense { background: var(--color-danger); }
 .chart-legend-dot.income { background: var(--color-success); }
 
+/* 图表触摸热区 */
+.chart-hit {
+  cursor: pointer;
+}
+
+/* 图表触摸提示 */
+.chart-tooltip {
+  pointer-events: none;
+  z-index: 10;
+  display: none;
+  position: absolute;
+  background: rgba(44, 58, 74, 0.92);
+  color: #FFF;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  transition: opacity 0.15s;
+  font-family: inherit;
+}
+
+/* chart-canvas 需要 relative 定位以支持 tooltip */
+#chart-canvas {
+  position: relative;
+}
+
 /* ---------- 水平时间轴 SVG ---------- */
 .timeline-svg-wrapper {
   position: relative;

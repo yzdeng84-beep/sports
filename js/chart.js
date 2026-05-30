@@ -10,9 +10,9 @@ const ChartModule = (() => {
   // ---------- 颜色常量 ----------
   const COLOR_INCOME  = '#86BDA0'; // 收入绿
   const COLOR_EXPENSE = '#D48686'; // 支出红
-  const COLOR_GRID    = '#E8E5E0';
-  const COLOR_TEXT    = '#8B8B8B';
-  const COLOR_AXIS    = '#C5C0BA';
+  const COLOR_GRID    = '#F0EDEA';
+  const COLOR_TEXT    = '#B5B2AF';
+  const COLOR_AXIS    = '#DCD8D4';
 
   // ---------- 工具函数 ----------
   function getToday() {
@@ -39,6 +39,11 @@ const ChartModule = (() => {
     if (amount >= 10000) return (amount / 10000).toFixed(1) + '万';
     if (amount >= 1000) return (amount / 1000).toFixed(1) + 'k';
     return String(amount);
+  }
+
+  /** 格式化金额（完整版，用于 tooltip） */
+  function fullMoney(amount) {
+    return '¥' + Number(amount).toFixed(2);
   }
 
   // ---------- 数据聚合 ----------
@@ -215,12 +220,20 @@ const ChartModule = (() => {
     data.forEach((d, i) => {
       const groupX = PAD_LEFT + i * groupWidth + groupWidth / 2;
 
+      // 组容器（含 data 属性用于 tooltip）
+      svg += `<g class="chart-group" data-label="${d.label}" data-income="${fullMoney(d.income)}" data-expense="${fullMoney(d.expense)}">`;
+
+      // 透明点击区域（覆盖整组柱形区域）
+      const hitW = groupWidth * 0.8;
+      const hitX = groupX - hitW / 2;
+      svg += `<rect x="${hitX}" y="${PAD_TOP}" width="${hitW}" height="${PLOT_H}" fill="transparent" class="chart-hit"/>`;
+
       // 支出柱（左侧）
       if (d.expense > 0 || true) {
         const barH = d.expense > 0 ? Math.max((d.expense / yMax) * PLOT_H, 1) : 0;
         const barX = groupX - barWidth - 2;
         const barY = SVG_H - PAD_BOTTOM - barH;
-        svg += `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barH}" rx="3" fill="${COLOR_EXPENSE}" opacity="0.85"/>`;
+        svg += `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barH}" rx="3" fill="${COLOR_EXPENSE}" opacity="0.85" class="chart-bar-expense"/>`;
       }
 
       // 收入柱（右侧）
@@ -228,8 +241,10 @@ const ChartModule = (() => {
         const barH = d.income > 0 ? Math.max((d.income / yMax) * PLOT_H, 1) : 0;
         const barX = groupX + 2;
         const barY = SVG_H - PAD_BOTTOM - barH;
-        svg += `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barH}" rx="3" fill="${COLOR_INCOME}" opacity="0.85"/>`;
+        svg += `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barH}" rx="3" fill="${COLOR_INCOME}" opacity="0.85" class="chart-bar-income"/>`;
       }
+
+      svg += `</g>`;
 
       // X轴标签
       svg += `<text x="${groupX}" y="${SVG_H - 8}" text-anchor="middle" font-size="10" fill="${COLOR_TEXT}" font-family="inherit">${d.label}</text>`;
@@ -298,6 +313,11 @@ const ChartModule = (() => {
     // 数据点 + X轴标签
     data.forEach((d, i) => {
       const cx = xFor(i);
+      const hitW = PLOT_W / (count - 1 || 1) * 0.7;
+
+      // 透明点击区域
+      svg += `<rect x="${cx - hitW / 2}" y="${PAD_TOP}" width="${hitW}" height="${PLOT_H}" fill="transparent" class="chart-hit" data-label="${d.label}" data-income="${fullMoney(d.income)}" data-expense="${fullMoney(d.expense)}"/>`;
+
       // 支出点
       svg += `<circle cx="${cx}" cy="${yFor(d.expense)}" r="3.5" fill="white" stroke="${COLOR_EXPENSE}" stroke-width="2"/>`;
       // 收入点
@@ -320,6 +340,118 @@ const ChartModule = (() => {
           <span class="chart-legend-dot income"></span> 收入
         </span>
       </div>`;
+  }
+
+  // ---------- Tooltip 管理 ----------
+  let tooltipEl = null;
+
+  /** 初始化或获取 tooltip DOM */
+  function getTooltip(container) {
+    if (!tooltipEl || tooltipEl.parentElement !== container) {
+      // 移除旧 tooltip
+      if (tooltipEl) tooltipEl.remove();
+      tooltipEl = document.createElement('div');
+      tooltipEl.className = 'chart-tooltip';
+      tooltipEl.style.cssText = 'position:absolute;pointer-events:none;z-index:10;display:none;'
+        + 'background:rgba(44,58,74,0.92);color:#FFF;padding:8px 12px;border-radius:8px;'
+        + 'font-size:12px;line-height:1.6;white-space:nowrap;box-shadow:0 2px 12px rgba(0,0,0,0.15);'
+        + 'transition:opacity 0.15s;';
+      container.appendChild(tooltipEl);
+    }
+    return tooltipEl;
+  }
+
+  /** 显示 tooltip */
+  function showTooltip(container, el, clientX, clientY) {
+    const label = el.getAttribute('data-label') || '';
+    const income = el.getAttribute('data-income') || '¥0.00';
+    const expense = el.getAttribute('data-expense') || '¥0.00';
+
+    const tip = getTooltip(container);
+    tip.innerHTML = `
+      <div style="margin-bottom:2px;opacity:0.7;font-size:11px;">${label}</div>
+      <div style="color:#86BDA0;">💚 收入 ${income}</div>
+      <div style="color:#D48686;">❤️ 支出 ${expense}</div>
+    `;
+
+    // 定位 tooltip
+    const containerRect = container.getBoundingClientRect();
+    const tipX = clientX - containerRect.left;
+    const tipY = clientY - containerRect.top - 10; // 手指上方偏移
+
+    // 防止溢出
+    const tipW = Math.min(tip.offsetWidth || 120, 140);
+    let left = tipX - tipW / 2;
+    let top = tipY - 60; // tooltip 高度约 55px
+
+    if (left < 4) left = 4;
+    if (left + tipW > containerRect.width - 4) left = containerRect.width - tipW - 4;
+    if (top < 4) top = tipY + 14; // 放手指下方
+
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.style.display = 'block';
+    tip.style.opacity = '1';
+  }
+
+  /** 隐藏 tooltip */
+  function hideTooltip() {
+    if (tooltipEl) {
+      tooltipEl.style.opacity = '0';
+      setTimeout(() => { if (tooltipEl) tooltipEl.style.display = 'none'; }, 150);
+    }
+  }
+
+  /** 绑定 tooltip 事件 */
+  function bindTooltip(container) {
+    // 移除旧监听（用标记避免重复绑定）
+    if (container._tooltipBound) return;
+    container._tooltipBound = true;
+
+    // 触摸事件
+    container.addEventListener('touchstart', (e) => {
+      const hit = e.target.closest('.chart-hit');
+      if (hit) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        showTooltip(container, hit, touch.clientX, touch.clientY);
+      }
+    }, { passive: false });
+
+    container.addEventListener('touchmove', (e) => {
+      const hit = e.target.closest('.chart-hit');
+      if (hit) {
+        const touch = e.touches[0];
+        showTooltip(container, hit, touch.clientX, touch.clientY);
+      } else {
+        hideTooltip();
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', () => {
+      setTimeout(hideTooltip, 800); // 延迟隐藏，方便查看
+    });
+
+    // 鼠标事件（桌面调试用）
+    container.addEventListener('mouseover', (e) => {
+      const hit = e.target.closest('.chart-hit');
+      if (hit) {
+        showTooltip(container, hit, e.clientX, e.clientY);
+      }
+    });
+
+    container.addEventListener('mousemove', (e) => {
+      const hit = e.target.closest('.chart-hit');
+      if (hit) {
+        showTooltip(container, hit, e.clientX, e.clientY);
+      } else {
+        hideTooltip();
+      }
+    });
+
+    container.addEventListener('mouseleave', () => {
+      hideTooltip();
+    });
   }
 
   // ---------- 主入口 ----------
@@ -345,6 +477,9 @@ const ChartModule = (() => {
     }
 
     container.innerHTML = svg + buildLegend();
+
+    // 绑定 tooltip 事件
+    bindTooltip(container);
   }
 
   // ---------- 公开 API ----------

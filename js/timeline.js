@@ -10,8 +10,12 @@ const TimelineModule = (() => {
   // ---------- 状态 ----------
   let selectedDate = null;
   let zoomLevel = 1;           // 1 = 全天可见（viewBox 宽度 960）
+  let viewX = 0;               // viewBox x 偏移（用于平移）
   let pinchStartDist = 0;
   let pinchStartZoom = 1;
+  let isPanning = false;
+  let panStartX = 0;
+  let panStartViewX = 0;
 
   // ---------- DOM 缓存 ----------
   const $dates    = document.getElementById('timeline-dates');
@@ -132,13 +136,13 @@ const TimelineModule = (() => {
       const x = (h - 6) * 60;
 
       // 网格虚线
-      svg += `<line x1="${x}" y1="24" x2="${x}" y2="158" stroke="#E8E5E0" stroke-width="1" stroke-dasharray="3,4"/>`;
+      svg += `<line x1="${x}" y1="24" x2="${x}" y2="158" stroke="#F0EDEA" stroke-width="1" stroke-dasharray="3,4"/>`;
 
       // 整点标签
-      svg += `<text x="${x}" y="14" text-anchor="middle" font-size="10" fill="#8B8B8B" font-family="inherit">${String(h).padStart(2, '0')}:00</text>`;
+      svg += `<text x="${x}" y="14" text-anchor="middle" font-size="10" fill="#B5B2AF" font-family="inherit">${String(h).padStart(2, '0')}:00</text>`;
 
       // 上下刻度
-      svg += `<line x1="${x}" y1="22" x2="${x}" y2="24" stroke="#C5C0BA" stroke-width="1"/>`;
+      svg += `<line x1="${x}" y1="22" x2="${x}" y2="24" stroke="#DCD8D4" stroke-width="1"/>`;
     }
 
     // --- 当前时间指示器（仅今天） ---
@@ -154,7 +158,7 @@ const TimelineModule = (() => {
 
     // --- 任务块 ---
     if (tasks.length === 0) {
-      svg += `<text x="480" y="100" text-anchor="middle" font-size="13" fill="#8B8B8B" font-family="inherit">暂无活动安排 🕐</text>`;
+      svg += `<text x="480" y="100" text-anchor="middle" font-size="13" fill="#B5B2AF" font-family="inherit">暂无活动安排 🕐</text>`;
     } else {
       const lanes = assignLanes(tasks);
 
@@ -210,34 +214,104 @@ const TimelineModule = (() => {
     });
   }
 
-  // ---------- 缩放功能 ----------
+  // ---------- SVG 坐标转换 ----------
+  /** 将屏幕像素偏移转为 SVG viewBox 坐标偏移 */
+  function screenToSvg(screenPx) {
+    if (!$axisSvg) return 0;
+    const svgRect = $axisSvg.getBoundingClientRect();
+    const svgW = svgRect.width;
+    const viewW = 960 / zoomLevel;
+    return (screenPx / svgW) * viewW;
+  }
+
+  // ---------- 缩放功能（定点缩放） ----------
   function zoomIn() {
-    zoomLevel = Math.min(zoomLevel * 1.5, 5);
-    applyZoom();
+    const newZoom = Math.min(zoomLevel * 1.5, 5);
+    zoomAt(newZoom, 0.5); // 以可视区域中心为焦点
   }
 
   function zoomOut() {
-    zoomLevel = Math.max(zoomLevel / 1.5, 1);
+    const newZoom = Math.max(zoomLevel / 1.5, 1);
+    zoomAt(newZoom, 0.5);
+  }
+
+  /**
+   * 以焦点比例进行缩放（保持焦点位置不动）
+   * @param {number} newZoom  新缩放级别
+   * @param {number} focalRatio  焦点在可视区域的相对位置（0=左边, 0.5=中间, 1=右边）
+   */
+  function zoomAt(newZoom, focalRatio) {
+    if (!$axisSvg) return;
+    const baseW = 960;
+    const oldViewW = baseW / zoomLevel;
+    const newViewW = baseW / newZoom;
+
+    // 焦点在 viewBox 中的绝对位置
+    const focalSvgX = viewX + oldViewW * focalRatio;
+
+    // 新 viewX：保持焦点在屏幕同一位置
+    viewX = focalSvgX - newViewW * focalRatio;
+
+    zoomLevel = newZoom;
     applyZoom();
   }
 
+  /** 应用缩放与平移到 SVG viewBox */
   function applyZoom() {
     if (!$axisSvg) return;
     const baseW = 960;
     const newW  = baseW / zoomLevel;
-    $axisSvg.setAttribute('viewBox', `0 0 ${newW} 180`);
-    // 缩放 >1x 时可横向滚动
+
+    // 限制 viewX 不超出边界
+    const maxX = baseW - newW;
+    viewX = Math.max(0, Math.min(viewX, maxX));
+
+    $axisSvg.setAttribute('viewBox', `${viewX} 0 ${newW} 180`);
+
+    // 缩放 >1x 时可横向滚动 + 拖拽平移
     if ($svgWrap) {
       $svgWrap.style.overflowX = zoomLevel > 1 ? 'auto' : 'hidden';
     }
   }
 
-  // ---------- 双指缩放 ----------
-  function bindPinchZoom() {
-    if (!$svgWrap) return;
+  // ---------- 平移拖拽 + 双指定点缩放 ----------
+  function bindPanZoom() {
+    if (!$svgWrap || !$axisSvg) return;
 
+    // --- 鼠标拖拽平移 ---
+    $svgWrap.addEventListener('mousedown', (e) => {
+      if (zoomLevel <= 1) return;
+      // 不拦截任务块上的点击
+      if (e.target.closest('.tl-task-svg-block')) return;
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartViewX = viewX;
+      $svgWrap.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      const dx = screenToSvg(panStartX - e.clientX);
+      viewX = panStartViewX + dx;
+      applyZoom();
+    });
+
+    document.addEventListener('mouseup', () => {
+      isPanning = false;
+      if ($svgWrap) $svgWrap.style.cursor = '';
+    });
+
+    // --- 触摸事件（单指平移 + 双指定点缩放） ---
     $svgWrap.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
+      if (e.touches.length === 1 && zoomLevel > 1) {
+        // 单指平移（仅缩放时）
+        if (e.target.closest('.tl-task-svg-block')) return;
+        isPanning = true;
+        panStartX = e.touches[0].clientX;
+        panStartViewX = viewX;
+      } else if (e.touches.length === 2) {
+        // 双指缩放
+        isPanning = false;
         pinchStartDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
@@ -248,19 +322,32 @@ const TimelineModule = (() => {
 
     $svgWrap.addEventListener('touchmove', (e) => {
       if (e.touches.length === 2) {
+        // 双指：定点缩放
         const currentDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
         if (pinchStartDist > 0) {
-          zoomLevel = Math.min(5, Math.max(1, pinchStartZoom * (currentDist / pinchStartDist)));
-          applyZoom();
+          const newZoom = Math.min(5, Math.max(1, pinchStartZoom * (currentDist / pinchStartDist)));
+          // 焦点 = 双指中点
+          const svgRect = $axisSvg.getBoundingClientRect();
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const focalRatio = Math.max(0, Math.min(1, (midX - svgRect.left) / svgRect.width));
+          zoomAt(newZoom, focalRatio);
         }
+      } else if (e.touches.length === 1 && isPanning && zoomLevel > 1) {
+        // 单指：平移
+        const dx = screenToSvg(panStartX - e.touches[0].clientX);
+        viewX = panStartViewX + dx;
+        applyZoom();
       }
     }, { passive: true });
 
-    $svgWrap.addEventListener('touchend', () => {
-      pinchStartDist = 0;
+    $svgWrap.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) {
+        pinchStartDist = 0;
+        isPanning = false;
+      }
     }, { passive: true });
   }
 
@@ -291,6 +378,7 @@ const TimelineModule = (() => {
   // ---------- 渲染入口 ----------
   async function render() {
     zoomLevel = 1;
+    viewX = 0;
     applyZoom();
     renderDateCards();
     await renderAxisSVG();
@@ -313,7 +401,7 @@ const TimelineModule = (() => {
     // 缩放按钮
     document.getElementById('tl-zoom-in') .addEventListener('click', zoomIn);
     document.getElementById('tl-zoom-out').addEventListener('click', zoomOut);
-    bindPinchZoom();
+    bindPanZoom();
 
     // 添加活动
     document.getElementById('btn-add-entry').addEventListener('click', () => {

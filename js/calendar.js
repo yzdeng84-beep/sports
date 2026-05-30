@@ -194,14 +194,14 @@ const CalendarModule = (() => {
       { color: '#8BB8D0', name: '青' },
     ];
 
+    // 当前选中状态（必须在 defaultTitle 之前声明）
+    let selectedIcon = task ? task.icon : icons[0].id;
+    let selectedColor = task ? (task.color || colors[0].color) : colors[0].color;
+
     // 预设值（编辑模式从已有数据填充）
     const defaultTitle = task ? (task.title || '') : IconsModule.getName(selectedIcon);
     const defaultTime = task ? (task.time || '07:00') : '07:00';
     const defaultDate = task ? task.date : selectedDate;
-
-    // 当前选中状态
-    let selectedIcon = task ? task.icon : icons[0].id;
-    let selectedColor = task ? (task.color || colors[0].color) : colors[0].color;
 
     // 渲染图标选择器 HTML（按分组）
     function iconPickerHTML() {
