@@ -10,6 +10,17 @@ const App = (() => {
   let currentPanel = null;  // 初始为 null，确保首次 switchPanel 能执行 render
   let currentDate = new Date();         // 当前浏览的日期
 
+  // ---------- 主题数据 ----------
+  const THEMES = {
+    default: { name:'默认蓝白', bgStart:'#EDF3F8', bgMid:'#F5F0EB', bgEnd:'#F8F6F3', dot:'#C5D9F0', dotOpacity:'0.25', gradient:'#EDF3F8,#F5F0EB,#F8F6F3' },
+    warm:    { name:'暖橙',   bgStart:'#F8EDEB', bgMid:'#F5EDE0', bgEnd:'#FDF8F5', dot:'#F0D5C5', dotOpacity:'0.25', gradient:'#F8EDEB,#F5EDE0,#FDF8F5' },
+    forest:  { name:'青绿',   bgStart:'#E8F5EC', bgMid:'#EDF5EE', bgEnd:'#F8FBF9', dot:'#C5E8D5', dotOpacity:'0.25', gradient:'#E8F5EC,#EDF5EE,#F8FBF9' },
+    minimal: { name:'素灰',   bgStart:'#F5F5F5', bgMid:'#F0F0F0', bgEnd:'#FFFFFF', dot:'transparent', dotOpacity:'0', gradient:'#F5F5F5,#F0F0F0,#FFFFFF' },
+    dark:    { name:'暗夜',   bgStart:'#2C3A4A', bgMid:'#364450', bgEnd:'#4A5568', dot:'#5A6A7A', dotOpacity:'0.15', gradient:'#2C3A4A,#364450,#4A5568' },
+  };
+  const THEME_STORAGE_KEY = 'cadence-theme';
+  const BGIMAGE_STORAGE_KEY = 'cadence-bg-image';
+
   // ---------- DOM 缓存 ----------
   const tabItems = document.querySelectorAll('.tab-item');
   const panels = document.querySelectorAll('.panel');
@@ -55,6 +66,12 @@ const App = (() => {
     if (typeof NotesModule !== 'undefined') NotesModule.bindEvents();
     if (typeof TimelineModule !== 'undefined') TimelineModule.bindEvents();
     if (typeof BudgetModule !== 'undefined') BudgetModule.bindEvents();
+
+    // 主题按钮
+    const btnTheme = document.getElementById('btn-theme');
+    if (btnTheme) {
+      btnTheme.addEventListener('click', showThemePicker);
+    }
   }
 
   // ---------- 注册 Service Worker ----------
@@ -83,6 +100,113 @@ const App = (() => {
       });
   }
 
+  // ---------- 主题管理 ----------
+
+  /** 应用预设主题 */
+  function applyTheme(themeId) {
+    const theme = THEMES[themeId];
+    if (!theme) return;
+    const root = document.documentElement;
+    root.style.setProperty('--color-bg-start', theme.bgStart);
+    root.style.setProperty('--color-bg-mid', theme.bgMid);
+    root.style.setProperty('--color-bg-end', theme.bgEnd);
+    root.style.setProperty('--color-dot', theme.dot);
+    root.style.setProperty('--color-dot-opacity', theme.dotOpacity);
+    root.style.setProperty('--bg-image', 'none');
+    localStorage.setItem(THEME_STORAGE_KEY, themeId);
+    localStorage.removeItem(BGIMAGE_STORAGE_KEY);
+  }
+
+  /** 导入图片作为背景 */
+  function applyImage(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      localStorage.setItem(BGIMAGE_STORAGE_KEY, dataUrl);
+      localStorage.setItem(THEME_STORAGE_KEY, 'image');
+      document.documentElement.style.setProperty('--bg-image', `url(${dataUrl})`);
+      document.documentElement.style.setProperty('--color-dot-opacity', '0');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /** 从 localStorage 恢复主题或图片 */
+  function loadTheme() {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    const savedImage = localStorage.getItem(BGIMAGE_STORAGE_KEY);
+
+    if (savedTheme === 'image' && savedImage) {
+      // 恢复自定义图片
+      document.documentElement.style.setProperty('--bg-image', `url(${savedImage})`);
+      document.documentElement.style.setProperty('--color-dot-opacity', '0');
+    } else if (savedTheme && THEMES[savedTheme]) {
+      // 恢复预设主题
+      applyTheme(savedTheme);
+    }
+    // 如无存档则使用 CSS 默认值
+  }
+
+  /** 弹出主题选择器 */
+  function showThemePicker() {
+    const overlay = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-content');
+    const currentTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'default';
+
+    // 预设主题卡片
+    const themeCards = Object.entries(THEMES).map(([id, t]) => `
+      <div class="theme-card ${currentTheme === id ? 'selected' : ''}" data-theme="${id}">
+        <div class="theme-card-image" style="background:linear-gradient(135deg,${t.gradient})"></div>
+        <span class="theme-card-name">${t.name}</span>
+      </div>
+    `).join('');
+
+    content.innerHTML = `
+      <h3 style="margin-bottom:16px;color:var(--color-primary-dark);font-weight:600;">🎨 更换背景</h3>
+      <div class="theme-grid" id="theme-grid">
+        ${themeCards}
+      </div>
+      <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md);">
+        <div class="theme-card-upload" id="btn-upload-img" style="flex:1;aspect-ratio:auto;padding:var(--space-md);">
+          <span class="theme-card-upload-icon">📷</span>
+          <span class="theme-card-upload-label">相册图片</span>
+        </div>
+        <button id="btn-cancel-theme" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,0,0,0.04);font-weight:600;color:var(--color-text-light);">取消</button>
+      </div>
+      <input type="file" id="file-bg-input" accept="image/*" style="display:none;">
+    `;
+
+    overlay.classList.add('show');
+
+    // 绑定主题点击
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const themeId = card.getAttribute('data-theme');
+        applyTheme(themeId);
+        overlay.classList.remove('show');
+      });
+    });
+
+    // 导入图片按钮
+    document.getElementById('btn-upload-img').addEventListener('click', () => {
+      document.getElementById('file-bg-input').click();
+    });
+
+    // 文件选择
+    document.getElementById('file-bg-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        applyImage(file);
+        overlay.classList.remove('show');
+      }
+    });
+
+    // 取消
+    document.getElementById('btn-cancel-theme').addEventListener('click', () => {
+      overlay.classList.remove('show');
+    });
+  }
+
   // ---------- 初始化 ----------
   async function init() {
     // 先初始化数据库
@@ -92,6 +216,9 @@ const App = (() => {
     } catch (err) {
       console.warn('⚠️ 数据库初始化失败，使用内存模式:', err);
     }
+
+    // 恢复主题（在渲染前执行，避免闪烁）
+    loadTheme();
 
     // 注册 Service Worker（PWA 离线缓存）
     registerSW();
@@ -123,7 +250,10 @@ const App = (() => {
     switchPanel,
     getCurrentDate: () => currentDate,
     setCurrentDate: (d) => { currentDate = d; },
-    getCurrentPanel: () => currentPanel
+    getCurrentPanel: () => currentPanel,
+    applyTheme,
+    showThemePicker,
+    getThemeList: () => THEMES,
   };
 })();
 
