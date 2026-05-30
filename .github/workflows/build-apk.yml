@@ -36,11 +36,11 @@ jobs:
       - name: 生成 Gradle Wrapper
         run: gradle wrapper --gradle-version 8.5
 
-      - name: 构建 Debug APK
-        run: ./gradlew assembleDebug
+      - name: 构建 Release APK（使用统一签名）
+        run: ./gradlew assembleRelease
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
           name: cadence-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/release/app-release.apk

@@ -10,8 +10,6 @@ build/
 local.properties
 *.apk
 *.aab
-*.jks
-*.keystore
 
 # 系统文件
 .DS_Store

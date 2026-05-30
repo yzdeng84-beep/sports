@@ -6,6 +6,15 @@ android {
     namespace 'com.cadence.app'
     compileSdk 34
 
+    signingConfigs {
+        release {
+            storeFile file('cadence.keystore')
+            storePassword 'cadence123'
+            keyAlias 'cadence'
+            keyPassword 'cadence123'
+        }
+    }
+
     defaultConfig {
         applicationId "com.cadence.app"
         minSdk 21
@@ -21,6 +30,7 @@ android {
         }
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
