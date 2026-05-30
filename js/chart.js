@@ -221,12 +221,12 @@ const ChartModule = (() => {
       const groupX = PAD_LEFT + i * groupWidth + groupWidth / 2;
 
       // 组容器（含 data 属性用于 tooltip）
-      svg += `<g class="chart-group" data-label="${d.label}" data-income="${fullMoney(d.income)}" data-expense="${fullMoney(d.expense)}">`;
+      svg += `<g class="chart-group">`;
 
-      // 透明点击区域（覆盖整组柱形区域）
+      // 透明点击区域（覆盖整组柱形区域，含 data 属性用于 tooltip）
       const hitW = groupWidth * 0.8;
       const hitX = groupX - hitW / 2;
-      svg += `<rect x="${hitX}" y="${PAD_TOP}" width="${hitW}" height="${PLOT_H}" fill="transparent" class="chart-hit"/>`;
+      svg += `<rect x="${hitX}" y="${PAD_TOP}" width="${hitW}" height="${PLOT_H}" fill="transparent" class="chart-hit" data-label="${d.label}" data-income="${fullMoney(d.income)}" data-expense="${fullMoney(d.expense)}"/>`;
 
       // 支出柱（左侧）
       if (d.expense > 0 || true) {
@@ -363,9 +363,21 @@ const ChartModule = (() => {
 
   /** 显示 tooltip */
   function showTooltip(container, el, clientX, clientY) {
-    const label = el.getAttribute('data-label') || '';
-    const income = el.getAttribute('data-income') || '¥0.00';
-    const expense = el.getAttribute('data-expense') || '¥0.00';
+    // 优先从 hit 元素读取 data 属性，若无则回退到父级 .chart-group
+    let label = el.getAttribute('data-label');
+    let income = el.getAttribute('data-income');
+    let expense = el.getAttribute('data-expense');
+    if (!label) {
+      const group = el.closest('.chart-group');
+      if (group) {
+        label = group.getAttribute('data-label');
+        income = group.getAttribute('data-income');
+        expense = group.getAttribute('data-expense');
+      }
+    }
+    label = label || '';
+    income = income || '¥0.00';
+    expense = expense || '¥0.00';
 
     const tip = getTooltip(container);
     tip.innerHTML = `

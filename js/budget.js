@@ -54,7 +54,12 @@ const BudgetModule = (() => {
     console.log('💰 [记账] render() 查询日期:', date);
     const records = await DB.expenses.getByDate(date);
     console.log('💰 [记账] 查询到记录数:', records.length, records);
-    records.sort((a, b) => b.createdAt - a.createdAt);
+    records.sort((a, b) => {
+      // 先按时间排序，再按创建时间
+      const timeCmp = (a.time || '12:00').localeCompare(b.time || '12:00');
+      if (timeCmp !== 0) return timeCmp;
+      return a.createdAt - b.createdAt;
+    });
 
     // 计算汇总
     let incomeTotal = 0, expenseTotal = 0;
@@ -85,7 +90,7 @@ const BudgetModule = (() => {
             <span>${cat.emoji || '📌'}</span>
           </div>
           <div class="budget-info">
-            <div class="budget-cat-name">${cat.name || r.category}</div>
+            <div class="budget-cat-name">${cat.name || r.category} <span style="font-size:var(--font-small);color:var(--color-text-light);margin-left:4px;">${r.time || ''}</span></div>
             ${r.note ? `<div class="budget-note">${escapeHtml(r.note)}</div>` : ''}
           </div>
           <div class="budget-amount ${r.type}">
@@ -133,6 +138,7 @@ const BudgetModule = (() => {
       category: data.category,
       amount: parseFloat(data.amount),
       note: data.note || '',
+      time: data.time || '12:00',  // 记账时间（HH:MM）
     };
     console.log('💰 [记账] addRecord() 准备写入:', record);
     const result = await DB.expenses.add(record);
@@ -192,6 +198,10 @@ const BudgetModule = (() => {
         </select>
       </div>
       <div style="margin-bottom:var(--space-md);">
+        <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">时间</label>
+        <input type="time" id="expense-time" class="form-input" value="12:00">
+      </div>
+      <div style="margin-bottom:var(--space-md);">
         <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">金额</label>
         <input type="number" id="expense-amount" class="form-input" placeholder="0.00" step="0.01" min="0" style="font-size:var(--font-h2);font-weight:700;">
       </div>
@@ -245,6 +255,7 @@ const BudgetModule = (() => {
     document.getElementById('btn-save-expense').addEventListener('click', async () => {
       const type = selectedType;
       const category = catSelect.value;
+      const time = document.getElementById('expense-time').value || '12:00';
       const amount = document.getElementById('expense-amount').value;
       const note = document.getElementById('expense-note').value;
 
@@ -253,9 +264,9 @@ const BudgetModule = (() => {
         return;
       }
 
-      console.log('💰 [记账] 保存按钮点击 — type:', type, 'category:', category, 'amount:', amount, 'note:', note);
+      console.log('💰 [记账] 保存按钮点击 — type:', type, 'category:', category, 'time:', time, 'amount:', amount, 'note:', note);
       try {
-        await addRecord({ type, category, amount, note });
+        await addRecord({ type, category, time, amount, note });
         console.log('💰 [记账] 保存成功，关闭弹窗');
         overlay.classList.remove('show');
       } catch (err) {
