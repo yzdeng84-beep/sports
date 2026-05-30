@@ -55,10 +55,10 @@ const BudgetModule = (() => {
     const records = await DB.expenses.getByDate(date);
     console.log('💰 [记账] 查询到记录数:', records.length, records);
     records.sort((a, b) => {
-      // 先按时间排序，再按创建时间
-      const timeCmp = (a.time || '12:00').localeCompare(b.time || '12:00');
-      if (timeCmp !== 0) return timeCmp;
-      return a.createdAt - b.createdAt;
+      // 先按日期排序（降序：最新在前），再按创建时间
+      const dateCmp = (b.date || '').localeCompare(a.date || '');
+      if (dateCmp !== 0) return dateCmp;
+      return b.createdAt - a.createdAt;
     });
 
     // 计算汇总
@@ -90,7 +90,7 @@ const BudgetModule = (() => {
             <span>${cat.emoji || '📌'}</span>
           </div>
           <div class="budget-info">
-            <div class="budget-cat-name">${cat.name || r.category} <span style="font-size:var(--font-small);color:var(--color-text-light);margin-left:4px;">${r.time || ''}</span></div>
+            <div class="budget-cat-name">${cat.name || r.category}</div>
             ${r.note ? `<div class="budget-note">${escapeHtml(r.note)}</div>` : ''}
           </div>
           <div class="budget-amount ${r.type}">
@@ -133,12 +133,11 @@ const BudgetModule = (() => {
   // ---------- 添加记账记录 ----------
   async function addRecord(data) {
     const record = {
-      date: getSelectedDate(),
+      date: data.date || getToday(),  // 让用户选择记账日期，默认今天
       type: data.type,        // 'income' | 'expense'
       category: data.category,
       amount: parseFloat(data.amount),
       note: data.note || '',
-      time: data.time || '12:00',  // 记账时间（HH:MM）
     };
     console.log('💰 [记账] addRecord() 准备写入:', record);
     const result = await DB.expenses.add(record);
@@ -198,8 +197,8 @@ const BudgetModule = (() => {
         </select>
       </div>
       <div style="margin-bottom:var(--space-md);">
-        <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">时间</label>
-        <input type="time" id="expense-time" class="form-input" value="12:00">
+        <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">日期</label>
+        <input type="date" id="expense-date" class="form-input" value="${getToday()}">
       </div>
       <div style="margin-bottom:var(--space-md);">
         <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">金额</label>
@@ -255,7 +254,7 @@ const BudgetModule = (() => {
     document.getElementById('btn-save-expense').addEventListener('click', async () => {
       const type = selectedType;
       const category = catSelect.value;
-      const time = document.getElementById('expense-time').value || '12:00';
+      const date = document.getElementById('expense-date').value || getToday();
       const amount = document.getElementById('expense-amount').value;
       const note = document.getElementById('expense-note').value;
 
@@ -264,9 +263,9 @@ const BudgetModule = (() => {
         return;
       }
 
-      console.log('💰 [记账] 保存按钮点击 — type:', type, 'category:', category, 'time:', time, 'amount:', amount, 'note:', note);
+      console.log('💰 [记账] 保存按钮点击 — type:', type, 'category:', category, 'date:', date, 'amount:', amount, 'note:', note);
       try {
-        await addRecord({ type, category, time, amount, note });
+        await addRecord({ type, category, date, amount, note });
         console.log('💰 [记账] 保存成功，关闭弹窗');
         overlay.classList.remove('show');
       } catch (err) {
