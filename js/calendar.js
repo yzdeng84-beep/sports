@@ -31,6 +31,14 @@ const CalendarModule = (() => {
     return formatDate(now.getFullYear(), now.getMonth(), now.getDate());
   }
 
+  /** 获取当前时间 HH:MM */
+  function getCurrentTime() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
   // ---------- 渲染月历网格 ----------
   async function renderGrid() {
     const today = getToday();
@@ -200,7 +208,7 @@ const CalendarModule = (() => {
 
     // 预设值（编辑模式从已有数据填充）
     const defaultTitle = task ? (task.title || '') : IconsModule.getName(selectedIcon);
-    const defaultTime = task ? (task.time || '07:00') : '07:00';
+    const defaultTime = task ? (task.time || getCurrentTime()) : getCurrentTime();
     const defaultDate = task ? task.date : selectedDate;
 
     // 渲染图标选择器 HTML（按分组）
@@ -277,100 +285,93 @@ const CalendarModule = (() => {
       `;
     }
 
-    // 构建完整弹窗
-    content.innerHTML = `
-      <h3 style="margin-bottom:16px;color:var(--color-primary-dark);font-weight:600;">
-        ${isEdit ? '✏️ 编辑计划' : '📋 添加健身计划'}
-      </h3>
+    // 构建完整弹窗 — 编辑模式（保持原有单条流程）
+    if (isEdit) {
+      content.innerHTML = `
+        <h3 style="margin-bottom:16px;color:var(--color-primary-dark);font-weight:600;">
+          ✏️ 编辑计划
+        </h3>
 
-      <div class="form-section">
-        <span class="form-label">📌 选择动作</span>
-        <div class="icon-picker" id="icon-picker">
-          ${iconPickerHTML()}
-        </div>
-      </div>
-
-      <div class="form-section" style="display:flex;gap:var(--space-sm);">
-        <div style="flex:1;">
-          <span class="form-label">⏰ 时间</span>
-          <input type="time" class="form-input" id="task-time" value="${defaultTime}">
-        </div>
-        <div style="flex:1;">
-          <span class="form-label">🎨 标签颜色</span>
-          <div class="color-picker" id="color-picker" style="padding-top:6px;">
-            ${colorPickerHTML()}
+        <div class="form-section">
+          <span class="form-label">📌 选择动作</span>
+          <div class="icon-picker" id="icon-picker">
+            ${iconPickerHTML()}
           </div>
         </div>
-      </div>
 
-      <div class="form-section">
-        <span class="form-label">📝 标题</span>
-        <input type="text" class="form-input" id="task-title" placeholder="标题（可选）" value="${escapeHtml(defaultTitle)}">
-      </div>
+        <div class="form-section" style="display:flex;gap:var(--space-sm);">
+          <div style="flex:1;">
+            <span class="form-label">⏰ 时间</span>
+            <input type="time" class="form-input" id="task-time" value="${defaultTime}">
+          </div>
+          <div style="flex:1;">
+            <span class="form-label">🎨 标签颜色</span>
+            <div class="color-picker" id="color-picker" style="padding-top:6px;">
+              ${colorPickerHTML()}
+            </div>
+          </div>
+        </div>
 
-      <div id="detail-fields-container">
-        ${fieldsHTML()}
-      </div>
+        <div class="form-section">
+          <span class="form-label">📝 标题</span>
+          <input type="text" class="form-input" id="task-title" placeholder="标题（可选）" value="${escapeHtml(defaultTitle)}">
+        </div>
 
-      <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md);">
-        ${isEdit ? `<button id="btn-delete-task" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(212,134,134,0.15);color:var(--color-danger);font-weight:600;">删除</button>` : ''}
-        <button id="btn-cancel-task" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,0,0,0.04);font-weight:600;color:var(--color-text-light);">取消</button>
-        <button id="btn-save-task" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:var(--color-primary);color:#FFF;font-weight:600;">保存</button>
-      </div>
-    `;
+        <div id="detail-fields-container">
+          ${fieldsHTML()}
+        </div>
 
-    overlay.classList.add('show');
+        <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md);">
+          <button id="btn-delete-task" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(212,134,134,0.15);color:var(--color-danger);font-weight:600;">删除</button>
+          <button id="btn-cancel-task" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,0,0,0.04);font-weight:600;color:var(--color-text-light);">取消</button>
+          <button id="btn-save-task" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:var(--color-primary);color:#FFF;font-weight:600;">保存</button>
+        </div>
+      `;
 
-    // 刷新图标选择器状态
-    function refreshIconPicker() {
-      const picker = document.getElementById('icon-picker');
-      if (picker) picker.innerHTML = iconPickerHTML();
-      // 重新绑定图标点击
-      document.querySelectorAll('.icon-picker-item').forEach(item => {
-        item.addEventListener('click', () => {
-          selectedIcon = item.getAttribute('data-icon');
-          refreshIconPicker();
-          // 动态刷新训练参数字段
-          const container = document.getElementById('detail-fields-container');
-          if (container) container.innerHTML = fieldsHTML();
-          // 自动更新标题为所选图标名称（仅当标题为空或为已知图标名时覆盖）
-          const titleInput = document.getElementById('task-title');
-          if (titleInput) {
-            const currentTitle = titleInput.value.trim();
-            const knownNames = IconsModule.getAll().map(i => i.name);
-            if (!currentTitle || knownNames.includes(currentTitle)) {
-              titleInput.value = IconsModule.getName(selectedIcon);
+      overlay.classList.add('show');
+
+      // 刷新图标选择器状态
+      function refreshIconPicker() {
+        const picker = document.getElementById('icon-picker');
+        if (picker) picker.innerHTML = iconPickerHTML();
+        document.querySelectorAll('.icon-picker-item').forEach(item => {
+          item.addEventListener('click', () => {
+            selectedIcon = item.getAttribute('data-icon');
+            refreshIconPicker();
+            const container = document.getElementById('detail-fields-container');
+            if (container) container.innerHTML = fieldsHTML();
+            const titleInput = document.getElementById('task-title');
+            if (titleInput) {
+              const currentTitle = titleInput.value.trim();
+              const knownNames = IconsModule.getAll().map(i => i.name);
+              if (!currentTitle || knownNames.includes(currentTitle)) {
+                titleInput.value = IconsModule.getName(selectedIcon);
+              }
             }
-          }
+          });
         });
-      });
-    }
+      }
 
-    // 刷新颜色选择器状态
-    function refreshColorPicker() {
-      const picker = document.getElementById('color-picker');
-      if (picker) picker.innerHTML = colorPickerHTML();
-      document.querySelectorAll('.color-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-          selectedColor = dot.getAttribute('data-color');
-          refreshColorPicker();
+      function refreshColorPicker() {
+        const picker = document.getElementById('color-picker');
+        if (picker) picker.innerHTML = colorPickerHTML();
+        document.querySelectorAll('.color-dot').forEach(dot => {
+          dot.addEventListener('click', () => {
+            selectedColor = dot.getAttribute('data-color');
+            refreshColorPicker();
+          });
         });
+      }
+
+      setTimeout(() => {
+        refreshIconPicker();
+        refreshColorPicker();
+      }, 0);
+
+      document.getElementById('btn-cancel-task').addEventListener('click', () => {
+        overlay.classList.remove('show');
       });
-    }
 
-    // 初次绑定
-    setTimeout(() => {
-      refreshIconPicker();
-      refreshColorPicker();
-    }, 0);
-
-    // 取消
-    document.getElementById('btn-cancel-task').addEventListener('click', () => {
-      overlay.classList.remove('show');
-    });
-
-    // 删除（仅编辑模式）
-    if (isEdit) {
       document.getElementById('btn-delete-task').addEventListener('click', async () => {
         if (confirm('确定删除这个计划吗？')) {
           await DB.tasks.remove(task.id);
@@ -379,25 +380,20 @@ const CalendarModule = (() => {
           renderGrid();
         }
       });
-    }
 
-    // 保存
-    document.getElementById('btn-save-task').addEventListener('click', async () => {
-      const title = document.getElementById('task-title').value.trim();
-      const time = document.getElementById('task-time').value || '07:00';
+      document.getElementById('btn-save-task').addEventListener('click', async () => {
+        const title = document.getElementById('task-title').value.trim();
+        const time = document.getElementById('task-time').value || getCurrentTime();
+        const fields = IconsModule.getFormFields(selectedIcon);
+        const details = {};
+        fields.forEach(f => {
+          const input = document.getElementById(`field-${f}`);
+          if (input && input.value) {
+            details[f] = f === 'speed' ? parseFloat(input.value) : Number(input.value);
+          }
+        });
 
-      // 收集训练参数字段
-      const fields = IconsModule.getFormFields(selectedIcon);
-      const details = {};
-      fields.forEach(f => {
-        const input = document.getElementById(`field-${f}`);
-        if (input && input.value) {
-          details[f] = f === 'speed' ? parseFloat(input.value) : Number(input.value);
-        }
-      });
-
-      try {
-        if (isEdit) {
+        try {
           await DB.tasks.update({
             id: task.id,
             date: defaultDate,
@@ -408,25 +404,240 @@ const CalendarModule = (() => {
             details: Object.keys(details).length > 0 ? details : undefined,
             createdAt: task.createdAt,
           });
-        } else {
-          await DB.tasks.add({
-            date: defaultDate,
-            time: time,
-            title: title,
+          overlay.classList.remove('show');
+          loadDayDetail(defaultDate);
+          renderGrid();
+        } catch (err) {
+          console.error('任务保存失败:', err);
+          alert('保存失败，请重试。\n错误：' + (err.message || '未知错误'));
+        }
+      });
+      return;
+    }
+
+    // ========== 批量添加模式（新建任务）==========
+    const batchItems = [];
+    let activeIndex = 0;
+
+    // 初始化第一个批量项
+    batchItems.push({
+      icon: selectedIcon,
+      color: selectedColor,
+      time: defaultTime,
+      title: defaultTitle,
+      details: {}
+    });
+
+    function renderBatchUI() {
+      // 当前活跃项的快捷引用
+      const current = batchItems[activeIndex] || batchItems[0];
+
+      content.innerHTML = `
+        <h3 style="margin-bottom:12px;color:var(--color-primary-dark);font-weight:600;">
+          📋 批量添加健身计划
+        </h3>
+
+        <!-- 已添加项列表 -->
+        <div class="batch-chips-row" id="batch-chips-row">
+          ${batchItems.map((item, idx) => `
+            <div class="batch-chip ${idx === activeIndex ? 'active' : ''}" data-index="${idx}">
+              <span>${IconsModule.getSVG(item.icon, 16)}</span>
+              <span class="batch-chip-title">${escapeHtml(item.title || '未命名')}</span>
+              <span class="batch-chip-time">${item.time}</span>
+              ${batchItems.length > 1 ? `<span class="batch-chip-remove" data-index="${idx}">×</span>` : ''}
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- 添加更多按钮 -->
+        <button class="btn-add-another" id="btn-add-another">
+          ＋ 添加动作（当前已选 ${batchItems.length} 项）
+        </button>
+
+        <!-- 分隔线 -->
+        <div class="batch-edit-divider">编辑当前动作</div>
+
+        <!-- 当前项编辑区 -->
+        ${batchItems.length === 0 ? `
+          <p style="text-align:center;color:var(--color-text-light);padding:var(--space-md);">点击上方"添加动作"开始记录</p>
+        ` : `
+          <div class="form-section">
+            <span class="form-label">📌 选择动作</span>
+            <div class="icon-picker" id="icon-picker" style="max-height:200px;overflow-y:auto;">
+              ${iconPickerHTML()}
+            </div>
+          </div>
+
+          <div class="form-section" style="display:flex;gap:var(--space-sm);">
+            <div style="flex:1;">
+              <span class="form-label">⏰ 时间</span>
+              <input type="time" class="form-input" id="task-time" value="${current.time}">
+            </div>
+            <div style="flex:1;">
+              <span class="form-label">🎨 标签颜色</span>
+              <div class="color-picker" id="color-picker" style="padding-top:6px;">
+                ${colorPickerHTML()}
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <span class="form-label">📝 标题</span>
+            <input type="text" class="form-input" id="task-title" placeholder="标题（可选）" value="${escapeHtml(current.title)}">
+          </div>
+
+          <div id="detail-fields-container">
+            ${fieldsHTML()}
+          </div>
+        `}
+
+        <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md);">
+          <button id="btn-cancel-task" style="flex:1;padding:var(--space-md);border-radius:var(--radius-sm);background:rgba(0,0,0,0.04);font-weight:600;color:var(--color-text-light);">取消</button>
+          <button id="btn-save-batch" style="flex:2;padding:var(--space-md);border-radius:var(--radius-sm);background:var(--color-primary);color:#FFF;font-weight:600;${batchItems.length === 0 ? 'display:none' : ''}">保存全部（${batchItems.length} 项）</button>
+        </div>
+      `;
+
+      // 重新绑定所有事件
+      bindBatchEvents();
+    }
+
+    function bindBatchEvents() {
+      // 点击 chip 切换活跃项
+      document.querySelectorAll('.batch-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+          if (e.target.closest('.batch-chip-remove')) return;
+          const idx = parseInt(chip.getAttribute('data-index'));
+          if (idx === activeIndex) return;
+          // 保存当前编辑状态到当前活跃项
+          saveCurrentToActive();
+          activeIndex = idx;
+          // 更新 selectedIcon/selectedColor 以匹配新活跃项
+          const item = batchItems[activeIndex];
+          selectedIcon = item.icon;
+          selectedColor = item.color;
+          renderBatchUI();
+        });
+      });
+
+      // 点击 × 删除项
+      document.querySelectorAll('.batch-chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.getAttribute('data-index'));
+          batchItems.splice(idx, 1);
+          if (activeIndex >= batchItems.length) activeIndex = Math.max(0, batchItems.length - 1);
+          if (batchItems.length > 0) {
+            selectedIcon = batchItems[activeIndex].icon;
+            selectedColor = batchItems[activeIndex].color;
+          }
+          renderBatchUI();
+        });
+      });
+
+      // "添加动作" 按钮
+      const addBtn = document.getElementById('btn-add-another');
+      if (addBtn) {
+        addBtn.addEventListener('click', () => {
+          saveCurrentToActive();
+          // 使用当前编辑区的值作为新项的默认值
+          const now = new Date();
+          const t = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+          batchItems.push({
             icon: selectedIcon,
             color: selectedColor,
-            details: Object.keys(details).length > 0 ? details : undefined,
+            time: t,
+            title: IconsModule.getName(selectedIcon),
+            details: {}
           });
-        }
-
-        overlay.classList.remove('show');
-        loadDayDetail(defaultDate);
-        renderGrid(); // 刷新日历圆点
-      } catch (err) {
-        console.error('任务保存失败:', err);
-        alert('保存失败，请重试。\n错误：' + (err.message || '未知错误'));
+          activeIndex = batchItems.length - 1;
+          renderBatchUI();
+        });
       }
-    });
+
+      // 图标选择器
+      document.querySelectorAll('.icon-picker-item').forEach(item => {
+        item.addEventListener('click', () => {
+          selectedIcon = item.getAttribute('data-icon');
+          batchItems[activeIndex].icon = selectedIcon;
+          if (!document.getElementById('task-title').value.trim() ||
+              IconsModule.getAll().map(i => i.name).includes(document.getElementById('task-title').value.trim())) {
+            batchItems[activeIndex].title = IconsModule.getName(selectedIcon);
+          }
+          renderBatchUI();
+        });
+      });
+
+      // 颜色选择器
+      document.querySelectorAll('.color-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+          selectedColor = dot.getAttribute('data-color');
+          batchItems[activeIndex].color = selectedColor;
+          renderBatchUI();
+        });
+      });
+
+      // 取消
+      const cancelBtn = document.getElementById('btn-cancel-task');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+          overlay.classList.remove('show');
+        });
+      }
+
+      // 批量保存
+      const saveBtn = document.getElementById('btn-save-batch');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          saveCurrentToActive();
+          if (batchItems.length === 0) {
+            alert('请至少添加一个动作');
+            return;
+          }
+          try {
+            for (const item of batchItems) {
+              await DB.tasks.add({
+                date: defaultDate,
+                time: item.time,
+                title: item.title || IconsModule.getName(item.icon),
+                icon: item.icon,
+                color: item.color,
+                details: Object.keys(item.details).length > 0 ? item.details : undefined,
+              });
+            }
+            overlay.classList.remove('show');
+            loadDayDetail(defaultDate);
+            renderGrid();
+          } catch (err) {
+            console.error('批量保存失败:', err);
+            alert('保存失败，请重试。\n错误：' + (err.message || '未知错误'));
+          }
+        });
+      }
+    }
+
+    /** 将当前 DOM 表单值写回 batchItems[activeIndex] */
+    function saveCurrentToActive() {
+      if (batchItems.length === 0 || activeIndex < 0) return;
+      const titleEl = document.getElementById('task-title');
+      const timeEl = document.getElementById('task-time');
+      if (titleEl) batchItems[activeIndex].title = titleEl.value.trim();
+      if (timeEl) batchItems[activeIndex].time = timeEl.value || getCurrentTime();
+      batchItems[activeIndex].icon = selectedIcon;
+      batchItems[activeIndex].color = selectedColor;
+      // 保存详情字段
+      const fields = IconsModule.getFormFields(selectedIcon);
+      const details = {};
+      fields.forEach(f => {
+        const input = document.getElementById(`field-${f}`);
+        if (input && input.value) {
+          details[f] = f === 'speed' ? parseFloat(input.value) : Number(input.value);
+        }
+      });
+      batchItems[activeIndex].details = details;
+    }
+
+    overlay.classList.add('show');
+    renderBatchUI();
   }
 
   // HTML 转义工具

@@ -8,7 +8,7 @@ const BudgetModule = (() => {
   'use strict';
 
   // ---------- 记账分类 ----------
-  const categories = [
+  const BUILT_IN_CATEGORIES = [
     { id: 'food',          name: '餐饮', emoji: '🍜', type: 'expense' },
     { id: 'transport',     name: '交通', emoji: '🚗', type: 'expense' },
     { id: 'shopping',      name: '购物', emoji: '🛍️', type: 'expense' },
@@ -21,11 +21,35 @@ const BudgetModule = (() => {
     { id: 'other_income',  name: '其他收入', emoji: '💰', type: 'income' },
   ];
 
+  // ---------- 自定义分类（localStorage 存储）----------
+  const CUSTOM_CAT_KEY = 'cadence-custom-categories';
+
+  function loadCustomCategories() {
+    try {
+      const raw = localStorage.getItem(CUSTOM_CAT_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function saveCustomCategories(list) {
+    try {
+      localStorage.setItem(CUSTOM_CAT_KEY, JSON.stringify(list));
+    } catch (e) {
+      alert('保存分类失败：存储空间已满。请删除一些自定义分类后再试。');
+    }
+  }
+
+  /** 合并内置 + 自定义分类 */
+  function getAllCategories() {
+    return [...BUILT_IN_CATEGORIES, ...loadCustomCategories()];
+  }
+
   // ---------- DOM 缓存 ----------
   const $list = document.getElementById('budget-list');
   const $incomeTotal = document.getElementById('budget-income-total');
   const $expenseTotal = document.getElementById('budget-expense-total');
   const $addBtn = document.getElementById('btn-add-expense');
+  const $searchInput = document.getElementById('budget-search-input');
 
   // ---------- 工具函数 ----------
   function getToday() {
@@ -50,6 +74,8 @@ const BudgetModule = (() => {
 
   // ---------- 渲染记账列表 ----------
   async function render() {
+    // 清空搜索框（日期切换后恢复按日期视图）
+    if ($searchInput) $searchInput.value = '';
     const date = getSelectedDate();
     console.log('💰 [记账] render() 查询日期:', date);
     const records = await DB.expenses.getByDate(date);
@@ -83,7 +109,7 @@ const BudgetModule = (() => {
     }
 
     $list.innerHTML = records.map(r => {
-      const cat = categories.find(c => c.id === r.category) || {};
+      const cat = getAllCategories().find(c => c.id === r.category) || {};
       return `
         <div class="budget-item" data-id="${r.id}">
           <div class="budget-cat-icon ${r.category || 'other'}">
@@ -130,6 +156,69 @@ const BudgetModule = (() => {
     return div.innerHTML;
   }
 
+  // ---------- 搜索记账记录（跨全部日期）----------
+  async function renderSearchResults(keyword) {
+    const allRecords = await DB.expenses.getAll();
+    const kw = keyword.toLowerCase();
+    const allCats = getAllCategories();
+
+    const filtered = allRecords.filter(r => {
+      const cat = allCats.find(c => c.id === r.category) || {};
+      return (cat.name || '').toLowerCase().includes(kw) ||
+             (r.note || '').toLowerCase().includes(kw) ||
+             (r.category || '').toLowerCase().includes(kw);
+    });
+
+    // 按创建时间降序（最新在前）
+    filtered.sort((a, b) => b.createdAt - a.createdAt);
+
+    // 渲染搜索结果
+    if (filtered.length === 0) {
+      $list.innerHTML = `
+        <div class="empty-state">
+          <span class="empty-icon">🔍</span>
+          <p>没有匹配的记账记录</p>
+          <p class="empty-hint">试试其他关键词吧</p>
+        </div>`;
+      return;
+    }
+
+    $list.innerHTML = filtered.map(r => {
+      const cat = allCats.find(c => c.id === r.category) || {};
+      return `
+        <div class="budget-item" data-id="${r.id}">
+          <div class="budget-cat-icon ${r.category || 'other'}">
+            <span>${cat.emoji || '📌'}</span>
+          </div>
+          <div class="budget-info">
+            <div class="budget-cat-name">${cat.name || r.category}</div>
+            ${r.note ? `<div class="budget-note">${escapeHtml(r.note)}</div>` : ''}
+            <div style="font-size:var(--font-caption);color:var(--color-text-light);">${r.date}</div>
+          </div>
+          <div class="budget-amount ${r.type}">
+            ${r.type === 'income' ? '+' : '-'}${formatMoney(r.amount)}
+          </div>
+          <button class="btn-budget-delete" data-id="${r.id}" title="删除">×</button>
+        </div>
+      `;
+    }).join('');
+
+    // 绑定删除事件
+    $list.querySelectorAll('.btn-budget-delete').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        if (confirm('确定删除这条记录吗？')) {
+          await DB.expenses.remove(id);
+          // 删除后重新搜索
+          const kw2 = $searchInput ? $searchInput.value.trim() : '';
+          if (kw2) renderSearchResults(kw2);
+          else render();
+        }
+      });
+    });
+  }
+
   // ---------- 添加记账记录 ----------
   async function addRecord(data) {
     const record = {
@@ -163,12 +252,134 @@ const BudgetModule = (() => {
         }
       });
     });
+
+    // 搜索记账记录（防抖300ms，跨全部日期）
+    let searchTimer = null;
+    $searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      const kw = $searchInput.value.trim();
+      searchTimer = setTimeout(() => {
+        if (kw) {
+          renderSearchResults(kw);
+        } else {
+          render(); // 清空搜索框 → 恢复按日期筛选
+        }
+      }, 300);
+    });
+  }
+
+  // ---------- 管理自定义分类 ----------
+  function showCategoryManager() {
+    const overlay = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-content');
+    const customCats = loadCustomCategories();
+
+    // 常用 emoji 选择器
+    const commonEmojis = ['🍜','🚗','🛍️','💪','🎮','☕','📌','💼','🎁','💰',
+                          '💊','📚','🏠','💻','🎓','✈️','🎂','🐱','🌿','🎵',
+                          '📱','👗','💄','🏥','🛒','🍕','🚌','⚡','🔧','🎯'];
+
+    content.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <h3 style="color:var(--color-primary-dark);font-weight:600;">📂 管理自定义分类</h3>
+        <button id="btn-back-to-add" style="background:none;border:none;font-size:var(--font-body);color:var(--color-primary);cursor:pointer;font-weight:600;">← 返回记账</button>
+      </div>
+
+      <!-- 自定义分类列表 -->
+      <div id="custom-cat-list" style="margin-bottom:var(--space-md);max-height:200px;overflow-y:auto;">
+        ${customCats.length === 0 ? '<p style="color:var(--color-text-light);text-align:center;padding:var(--space-md);">暂无自定义分类</p>' : ''}
+        ${customCats.map(cat => `
+          <div class="budget-item" style="margin-bottom:4px;">
+            <div class="budget-cat-icon" style="background:rgba(0,0,0,0.04);">
+              <span>${cat.emoji || '📌'}</span>
+            </div>
+            <div class="budget-info">
+              <div class="budget-cat-name">${escapeHtml(cat.name)} <span style="font-size:var(--font-caption);color:var(--color-text-light);">${cat.type === 'income' ? '收入' : '支出'}</span></div>
+            </div>
+            <button class="btn-budget-delete" data-cat-id="${cat.id}" title="删除分类">×</button>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- 添加新分类 -->
+      <div style="border-top:1px solid rgba(0,0,0,0.06);padding-top:var(--space-md);">
+        <div style="font-size:var(--font-body);font-weight:600;margin-bottom:var(--space-sm);color:var(--color-text-dark);">➕ 添加分类</div>
+        <div style="margin-bottom:var(--space-sm);">
+          <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">选择图标</label>
+          <div id="emoji-picker-grid" style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${commonEmojis.map(e => `<span class="emoji-option" data-emoji="${e}" style="font-size:22px;padding:4px 6px;border-radius:8px;cursor:pointer;border:2px solid transparent;">${e}</span>`).join('')}
+          </div>
+        </div>
+        <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-sm);">
+          <div style="flex:1;">
+            <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">名称</label>
+            <input type="text" id="new-cat-name" class="form-input" placeholder="例如：医疗">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">类型</label>
+            <select id="new-cat-type" class="form-select">
+              <option value="expense">支出</option>
+              <option value="income">收入</option>
+            </select>
+          </div>
+        </div>
+        <button id="btn-add-custom-cat" style="width:100%;padding:var(--space-sm);border-radius:var(--radius-sm);background:var(--color-success);color:#FFF;font-weight:600;">添加此分类</button>
+      </div>
+    `;
+
+    overlay.classList.add('show');
+
+    // emoji 选择交互
+    let selectedEmoji = '📌';
+    content.querySelector('#emoji-picker-grid').addEventListener('click', (e) => {
+      const opt = e.target.closest('.emoji-option');
+      if (!opt) return;
+      selectedEmoji = opt.getAttribute('data-emoji');
+      content.querySelectorAll('.emoji-option').forEach(el => el.style.borderColor = 'transparent');
+      opt.style.borderColor = 'var(--color-primary)';
+    });
+    // 默认选中第一个
+    const firstEmoji = content.querySelector('.emoji-option');
+    if (firstEmoji) { firstEmoji.style.borderColor = 'var(--color-primary)'; selectedEmoji = firstEmoji.getAttribute('data-emoji'); }
+
+    // 返回记账表单
+    content.querySelector('#btn-back-to-add').addEventListener('click', () => {
+      showAddForm();
+    });
+
+    // 删除自定义分类
+    content.querySelectorAll('.btn-budget-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const catId = btn.getAttribute('data-cat-id');
+        const cats = loadCustomCategories().filter(c => c.id !== catId);
+        saveCustomCategories(cats);
+        showCategoryManager(); // 刷新列表
+      });
+    });
+
+    // 添加自定义分类
+    content.querySelector('#btn-add-custom-cat').addEventListener('click', () => {
+      const name = document.getElementById('new-cat-name').value.trim();
+      const type = document.getElementById('new-cat-type').value;
+      if (!name) { alert('请输入分类名称'); return; }
+      const newCat = {
+        id: 'custom_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6),
+        name: name,
+        emoji: selectedEmoji,
+        type: type,
+      };
+      const cats = loadCustomCategories();
+      cats.push(newCat);
+      saveCustomCategories(cats);
+      showCategoryManager(); // 刷新
+    });
   }
 
   // ---------- 弹出添加表单 ----------
   function showAddForm() {
-    const expenseCats = categories.filter(c => c.type === 'expense');
-    const incomeCats = categories.filter(c => c.type === 'income');
+    const allCats = getAllCategories();
+    const expenseCats = allCats.filter(c => c.type === 'expense');
+    const incomeCats = allCats.filter(c => c.type === 'income');
 
     const expenseOptions = expenseCats.map(c =>
       `<option value="${c.id}">${c.emoji} ${c.name}</option>`
@@ -191,7 +402,10 @@ const BudgetModule = (() => {
         </div>
       </div>
       <div style="margin-bottom:var(--space-md);">
-        <label style="font-size:var(--font-caption);color:var(--color-text-light);display:block;margin-bottom:4px;">分类</label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <label style="font-size:var(--font-caption);color:var(--color-text-light);">分类</label>
+          <button type="button" id="btn-manage-cats" style="background:none;border:none;font-size:var(--font-caption);color:var(--color-primary);cursor:pointer;padding:0;">📂 管理分类</button>
+        </div>
         <select id="expense-category" class="form-select">
           ${expenseOptions}
         </select>
@@ -215,6 +429,14 @@ const BudgetModule = (() => {
     `;
 
     overlay.classList.add('show');
+
+    // "管理分类" 按钮事件
+    const btnManageCats = document.getElementById('btn-manage-cats');
+    if (btnManageCats) {
+      btnManageCats.addEventListener('click', () => {
+        showCategoryManager();
+      });
+    }
 
     // 类型切换（用 JS 变量代替 hidden radio，避免 :checked 失效）
     let selectedType = 'expense'; // 默认支出
@@ -309,6 +531,6 @@ const BudgetModule = (() => {
     addRecord,
     showAddForm,
     renderMini,
-    getCategories: () => categories,
+    getCategories: () => getAllCategories(),
   };
 })();
