@@ -6,13 +6,15 @@
 'use strict';
 
 // ---------- 缓存名称（版本变更时自动清理旧缓存） ----------
-const CACHE_NAME = 'cadence-v7';
+const CACHE_NAME = 'cadence-v8';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './css/style.css',
   './js/storage.js',
   './js/icons.js',
+  './js/tutorials.js',
+  './js/activities.js',
   './js/calendar.js',
   './js/notes.js',
   './js/timeline.js',

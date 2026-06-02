@@ -233,7 +233,10 @@ const CalendarModule = (() => {
                 <div class="icon-picker-item ${icon.id === selectedIcon ? 'selected' : ''}"
                      data-icon="${icon.id}">
                   ${IconsModule.getSVG(icon.id, 28)}
-                  <span class="icon-picker-name">${icon.name}</span>
+                  <span class="icon-picker-name" style="display:flex;align-items:center;gap:2px;">
+                    ${icon.name}
+                    <span class="tutorial-ctx-btn" data-tutorial="${icon.id}" title="查看${icon.name}教程">?</span>
+                  </span>
                 </div>
               `).join('')}
             </div>
@@ -356,6 +359,17 @@ const CalendarModule = (() => {
               if (!currentTitle || knownNames.includes(currentTitle)) {
                 titleInput.value = IconsModule.getName(selectedIcon);
               }
+            }
+          });
+        });
+
+        // 教程按钮（?）
+        document.querySelectorAll('.tutorial-ctx-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const iconId = btn.getAttribute('data-tutorial');
+            if (typeof TutorialsModule !== 'undefined') {
+              TutorialsModule.show(iconId);
             }
           });
         });
@@ -574,6 +588,17 @@ const CalendarModule = (() => {
             batchItems[activeIndex].title = IconsModule.getName(selectedIcon);
           }
           renderBatchUI();
+        });
+      });
+
+      // 教程按钮（?）
+      document.querySelectorAll('.tutorial-ctx-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const iconId = btn.getAttribute('data-tutorial');
+          if (typeof TutorialsModule !== 'undefined') {
+            TutorialsModule.show(iconId);
+          }
         });
       });
 

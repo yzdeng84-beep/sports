@@ -72,6 +72,14 @@ const App = (() => {
     if (btnTheme) {
       btnTheme.addEventListener('click', showThemePicker);
     }
+
+    // 教程按钮
+    const btnTutorial = document.getElementById('btn-tutorial');
+    if (btnTutorial && typeof TutorialsModule !== 'undefined') {
+      btnTutorial.addEventListener('click', () => {
+        TutorialsModule.show();
+      });
+    }
   }
 
   // ---------- 注册 Service Worker ----------
