@@ -44,11 +44,106 @@ const App = (() => {
     // 切换到对应板块时刷新数据
     if (panelId === 'panel-calendar' && typeof CalendarModule !== 'undefined') {
       CalendarModule.render();
-    } else if (panelId === 'panel-notes' && typeof NotesModule !== 'undefined') {
-      NotesModule.render();
     } else if (panelId === 'panel-timeline' && typeof TimelineModule !== 'undefined') {
       TimelineModule.render();
+    } else if (panelId === 'panel-countdown') {
+      if (typeof CountdownModule !== 'undefined') CountdownModule.render();
+      if (typeof NotesModule !== 'undefined') NotesModule.render();
     }
+  }
+
+  // ---------- 面板滑动切换 ----------
+  const PANEL_ORDER = ['panel-calendar', 'panel-timeline', 'panel-countdown'];
+
+  function bindSwipe() {
+    const main = document.querySelector('.app-main');
+    if (!main) return;
+
+    let startX = 0, startY = 0, isSwiping = false;
+
+    main.addEventListener('touchstart', (e) => {
+      // 如果弹窗打开，不处理滑动
+      const overlay = document.getElementById('modal-overlay');
+      if (overlay && overlay.classList.contains('show')) return;
+
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      isSwiping = true;
+    }, { passive: true });
+
+    main.addEventListener('touchmove', (e) => {
+      if (!isSwiping) return;
+    }, { passive: true });
+
+    main.addEventListener('touchend', (e) => {
+      if (!isSwiping) return;
+      isSwiping = false;
+
+      const deltaX = (e.changedTouches[0].clientX - startX);
+      const deltaY = (e.changedTouches[0].clientY - startY);
+
+      // 水平位移 > 50px 且 水平 > 垂直 → 触发切换
+      if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        const currentIdx = PANEL_ORDER.indexOf(currentPanel);
+        let newIdx = currentIdx;
+
+        if (deltaX < 0) {
+          // 左滑 → 下一个面板
+          newIdx = (currentIdx + 1) % PANEL_ORDER.length;
+        } else {
+          // 右滑 → 上一个面板
+          newIdx = (currentIdx - 1 + PANEL_ORDER.length) % PANEL_ORDER.length;
+        }
+
+        if (newIdx !== currentIdx) {
+          // 添加滑动动画方向
+          const targetPanel = document.getElementById(PANEL_ORDER[newIdx]);
+          const currentEl = document.getElementById(currentPanel);
+
+          if (targetPanel && currentEl) {
+            const direction = deltaX < 0 ? 'left' : 'right';
+            animatePanelSwitch(currentEl, targetPanel, direction);
+            switchPanel(PANEL_ORDER[newIdx]);
+          }
+        }
+      }
+    }, { passive: true });
+  }
+
+  /** CSS 过渡动画：面板滑入/滑出 */
+  function animatePanelSwitch(fromEl, toEl, direction) {
+    const offset = direction === 'left' ? '-30px' : '30px';
+
+    // 新面板从侧边滑入
+    toEl.style.transition = 'none';
+    toEl.style.transform = `translateX(${direction === 'left' ? '30px' : '-30px'})`;
+    toEl.style.opacity = '0';
+    toEl.style.display = 'block';
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toEl.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+        toEl.style.transform = 'translateX(0)';
+        toEl.style.opacity = '1';
+      });
+    });
+
+    // 旧面板滑出
+    fromEl.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+    fromEl.style.transform = `translateX(${offset})`;
+    fromEl.style.opacity = '0';
+
+    // 动画结束后清理
+    setTimeout(() => {
+      toEl.style.transition = '';
+      toEl.style.transform = '';
+      toEl.style.opacity = '';
+      toEl.style.display = '';
+      fromEl.style.transition = '';
+      fromEl.style.transform = '';
+      fromEl.style.opacity = '';
+      fromEl.style.display = '';
+    }, 320);
   }
 
   // ---------- 事件绑定 ----------
@@ -63,9 +158,9 @@ const App = (() => {
 
     // 各模块的事件绑定
     if (typeof CalendarModule !== 'undefined') CalendarModule.bindEvents();
-    if (typeof NotesModule !== 'undefined') NotesModule.bindEvents();
     if (typeof TimelineModule !== 'undefined') TimelineModule.bindEvents();
-    if (typeof BudgetModule !== 'undefined') BudgetModule.bindEvents();
+    if (typeof CountdownModule !== 'undefined') CountdownModule.bindEvents();
+    if (typeof NotesModule !== 'undefined') NotesModule.bindEvents();
 
     // 主题按钮
     const btnTheme = document.getElementById('btn-theme');
@@ -233,6 +328,7 @@ const App = (() => {
 
     // 绑定事件
     bindEvents();
+    bindSwipe();
 
     // 全局遮罩关闭（统一入口，避免各模块 { once: true } 冲突）
     const overlay = document.getElementById('modal-overlay');

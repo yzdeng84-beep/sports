@@ -1291,13 +1291,44 @@ const CalendarModule = (() => {
       });
     }
 
-    // 记账按钮（日历详情区） → 弹出记账弹窗
-    const btnExpenseCal = document.getElementById('btn-add-expense-cal');
-    if (btnExpenseCal && typeof BudgetModule !== 'undefined') {
-      btnExpenseCal.addEventListener('click', () => {
-        BudgetModule.showAddForm();
-      });
-    }
+    // 日历面板内左右滑动切换月份
+    bindCalendarSwipe();
+  }
+
+  /** 日历面板独立滑动 → 切换月份 */
+  function bindCalendarSwipe() {
+    const panel = document.getElementById('panel-calendar');
+    if (!panel) return;
+
+    let startX = 0, startY = 0, tracking = false;
+
+    panel.addEventListener('touchstart', (e) => {
+      // 不在弹窗、按钮、输入框上触发
+      if (e.target.closest('button, input, textarea, select, .modal-overlay')) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    panel.addEventListener('touchend', (e) => {
+      if (!tracking) return;
+      tracking = false;
+
+      const deltaX = e.changedTouches[0].clientX - startX;
+      const deltaY = e.changedTouches[0].clientY - startY;
+
+      // 水平位移 > 40px 且 水平 > 垂直 → 切换月份
+      if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        e.stopPropagation(); // 阻止冒泡到面板级滑动
+        if (deltaX < 0) {
+          // 左滑 → 下个月
+          changeMonth(1);
+        } else {
+          // 右滑 → 上个月
+          changeMonth(-1);
+        }
+      }
+    });
   }
 
   // ---------- 公开 API ----------

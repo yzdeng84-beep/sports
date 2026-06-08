@@ -53,33 +53,45 @@
           <!-- 由 JS 动态渲染 -->
         </ul>
         <button class="btn-add" id="btn-add-task">+ 添加健身计划</button>
-        <button class="btn-add btn-add-activity" id="btn-add-activity">+ 添加活动</button>
-        <button class="btn-add btn-add-expense" id="btn-add-expense-cal">+ 记账</button>
+        <button class="btn-add" id="btn-add-activity">+ 添加活动</button>
       </div>
     </section>
 
-    <!-- 板块②：心得记录 -->
-    <section id="panel-notes" class="panel">
-      <!-- 搜索栏 -->
-      <div class="notes-search">
-        <input type="text" class="search-input" id="notes-search-input" placeholder="🔍 搜索心得...">
-      </div>
-
-      <!-- 笔记列表 -->
-      <div class="notes-list" id="notes-list">
+    <!-- 板块③：纪念日倒计时 -->
+    <section id="panel-countdown" class="panel">
+      <!-- 倒计时列表 -->
+      <div class="countdown-list" id="countdown-list">
         <!-- 由 JS 动态渲染 -->
         <div class="empty-state">
-          <span class="empty-icon">📝</span>
-          <p>还没有心得记录</p>
-          <p class="empty-hint">点击下方按钮写下你的第一条心得吧</p>
+          <span class="empty-icon">💝</span>
+          <p>还没有纪念日</p>
+          <p class="empty-hint">点击下方按钮添加你的第一个纪念日吧</p>
         </div>
       </div>
 
       <!-- 新建按钮 -->
-      <button class="btn-add btn-add-fixed" id="btn-add-note">+ 写心得</button>
+      <button class="btn-add" id="btn-add-countdown">+ 添加纪念日</button>
+
+      <!-- ===== 分隔线 ===== -->
+      <div class="section-divider"></div>
+
+      <!-- ===== 心得区域 ===== -->
+      <div class="notes-section" id="notes-section">
+        <div class="notes-section-header">
+          <span>📝 心得记录</span>
+        </div>
+        <div class="notes-search-wrapper">
+          <input type="text" class="notes-search-input" id="notes-search-input"
+                 placeholder="🔍 搜索心得...">
+        </div>
+        <div class="notes-list" id="notes-list">
+          <!-- NotesModule 动态渲染 -->
+        </div>
+        <button class="btn-add" id="btn-add-note">+ 写心得</button>
+      </div>
     </section>
 
-    <!-- 板块③：时间轴 + 记账（统一视图） -->
+    <!-- 板块②：日程 — 环形时间轴 -->
     <section id="panel-timeline" class="panel">
 
       <!-- ===== 日期导航 ===== -->
@@ -90,71 +102,16 @@
         <button class="btn-today" id="btn-today">今天</button>
       </div>
 
-      <!-- ===== 水平时间轴（SVG） ===== -->
-      <div class="timeline-canvas-wrapper">
-        <div class="timeline-svg-wrapper" id="timeline-svg-wrapper">
-          <div class="timeline-zoom-controls" id="timeline-zoom-controls">
-            <button class="timeline-zoom-btn" id="tl-zoom-out" title="缩小">−</button>
-            <button class="timeline-zoom-btn" id="tl-zoom-in" title="放大">+</button>
-          </div>
-          <svg class="timeline-axis-svg" id="timeline-axis-svg"
-               viewBox="0 0 960 180" preserveAspectRatio="xMidYMid meet">
-            <!-- TimelineModule 动态渲染 -->
-          </svg>
-        </div>
-        <!-- 当日收支摘要 -->
-        <div class="budget-mini" id="budget-mini">
-          <div class="budget-mini-row">
-            <span>💰 今日支出</span>
-            <span class="budget-mini-amount expense">¥0.00</span>
-          </div>
-          <div class="budget-mini-row">
-            <span>💚 今日收入</span>
-            <span class="budget-mini-amount income">¥0.00</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ===== 记账搜索 ===== -->
-      <div class="budget-search" id="budget-search-wrapper" style="margin-top:var(--space-sm);">
-        <input type="text" class="search-input" id="budget-search-input" placeholder="🔍 搜索记账记录（按备注、分类）...">
-      </div>
-
-      <!-- ===== 记账详情区 ===== -->
-      <div class="budget-summary" id="budget-summary" style="margin-top:var(--space-sm);">
-        <div class="budget-sum-card income">
-          <div class="budget-sum-label">今日收入</div>
-          <div class="budget-sum-amount income" id="budget-income-total">¥0.00</div>
-        </div>
-        <div class="budget-sum-card expense">
-          <div class="budget-sum-label">今日支出</div>
-          <div class="budget-sum-amount expense" id="budget-expense-total">¥0.00</div>
-        </div>
-      </div>
-
-      <!-- ===== 消费图表 ===== -->
-      <div class="chart-container" id="chart-container">
-        <div class="chart-period-toggle" id="chart-period-toggle">
-          <button class="chart-period-btn" data-period="day">日</button>
-          <button class="chart-period-btn active" data-period="week">周</button>
-          <button class="chart-period-btn" data-period="month">月</button>
-        </div>
-        <div id="chart-canvas">
-          <!-- ChartModule.render() 填充 -->
-        </div>
-      </div>
-
-      <div class="budget-list" id="budget-list" style="margin-top:var(--space-sm);">
-        <div class="empty-state">
-          <span class="empty-icon">💰</span>
-          <p>今天还没有记账</p>
-          <p class="empty-hint">点击下方按钮记录一笔吧</p>
-        </div>
+      <!-- ===== 环形时间轴（SVG） ===== -->
+      <div class="timeline-ring-wrapper" id="timeline-ring-wrapper">
+        <svg class="timeline-ring-svg" id="timeline-ring-svg"
+             viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
+          <!-- TimelineModule 动态渲染 -->
+        </svg>
       </div>
 
       <!-- ===== 操作按钮 ===== -->
       <button class="btn-add" id="btn-add-entry">+ 添加活动</button>
-      <button class="btn-add btn-add-expense" id="btn-add-expense">+ 记一笔</button>
 
     </section>
 
@@ -166,13 +123,13 @@
       <span class="tab-icon">📅</span>
       <span class="tab-label">日历</span>
     </button>
-    <button class="tab-item" data-panel="panel-notes">
-      <span class="tab-icon">📝</span>
-      <span class="tab-label">心得</span>
-    </button>
     <button class="tab-item" data-panel="panel-timeline">
       <span class="tab-icon">🕐</span>
       <span class="tab-label">日程</span>
+    </button>
+    <button class="tab-item" data-panel="panel-countdown">
+      <span class="tab-icon">💝</span>
+      <span class="tab-label">纪念日</span>
     </button>
   </nav>
 
@@ -188,11 +145,11 @@
   <script src="js/icons.js"></script>
   <script src="js/tutorials.js"></script>
   <script src="js/activities.js"></script>
+  <script src="js/lunar.js"></script>
   <script src="js/calendar.js"></script>
   <script src="js/notes.js"></script>
   <script src="js/timeline.js"></script>
-  <script src="js/budget.js"></script>
-  <script src="js/chart.js"></script>
+  <script src="js/countdown.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

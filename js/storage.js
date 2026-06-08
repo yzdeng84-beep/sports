@@ -8,7 +8,7 @@ const DB = (() => {
   'use strict';
 
   const DB_NAME = 'FitnessPlannerDB';
-  const DB_VERSION = 2; // v2: 确保 expenses 表存在（修复旧版 DB 缺失该表的问题）
+  const DB_VERSION = 3; // v3: 新增 countdowns 表（纪念日倒计时）
 
   let db = null; // 数据库实例引用
 
@@ -43,6 +43,12 @@ const DB = (() => {
         if (!database.objectStoreNames.contains('expenses')) {
           const expStore = database.createObjectStore('expenses', { keyPath: 'id' });
           expStore.createIndex('date', 'date', { unique: false });
+        }
+
+        // 创建 countdowns 表：纪念日倒计时
+        if (!database.objectStoreNames.contains('countdowns')) {
+          const cdStore = database.createObjectStore('countdowns', { keyPath: 'id' });
+          cdStore.createIndex('targetDate', 'targetDate', { unique: false });
         }
       };
 
@@ -223,6 +229,14 @@ const DB = (() => {
         };
         return getByDateRange('expenses', fmt(mon), fmt(sun));
       },
-    }
+    },
+    countdowns: {
+      add: (data) => add('countdowns', data),
+      update: (data) => update('countdowns', data),
+      remove: (id) => remove('countdowns', id),
+      getAll: () => getAll('countdowns'),
+      getByDate: (date) => getByDate('countdowns', date),
+      getById: (id) => getById('countdowns', id),
+    },
   };
 })();
